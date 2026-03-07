@@ -166,6 +166,37 @@ copit/
         └── sync.rs              # copit sync tests
 ```
 
+## Releasing
+
+### Prerequisites
+
+- [git-cliff](https://git-cliff.org/) — changelog generator
+- [cargo-edit](https://github.com/killercup/cargo-edit) — provides `cargo set-version`
+
+```bash
+# Install via cargo
+cargo install git-cliff
+cargo install cargo-edit
+
+# Or via Homebrew (macOS)
+brew install git-cliff
+```
+
+### Creating a release
+
+```bash
+# Auto-bump version from conventional commits (feat: → minor, fix: → patch)
+./scripts/release.sh
+
+# Or specify an explicit version
+./scripts/release.sh 0.2.0
+
+# Then push to trigger the release workflow
+git push && git push --tags
+```
+
+The script updates `CHANGELOG.md`, bumps `Cargo.toml`, commits, and creates a git tag. Pushing the tag triggers the GitHub Actions release workflow which builds binaries, publishes to PyPI, and publishes to crates.io.
+
 ## Submitting changes
 
 1. Fork the repo and create a feature branch

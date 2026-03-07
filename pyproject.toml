@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "copit"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Copy reusable source code from GitHub repos, HTTP URLs, and ZIP archives into your project"
 requires-python = ">=3.8"
 license = { text = "MIT" }

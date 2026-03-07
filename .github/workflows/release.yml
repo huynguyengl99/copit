@@ -1,5 +1,5 @@
 # Release workflow:
-# 1. Triggered by tag push (created by release-plz)
+# 1. Triggered by tag push (local script) or workflow_dispatch (release-plz)
 # 2. Builds binaries + wheels for all platforms
 # 3. Creates GitHub Release with archives
 # 4. Publishes to PyPI
@@ -10,6 +10,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g., v0.1.0)"
+        required: true
+        type: string
 
 permissions: {}
 
@@ -26,13 +32,19 @@ jobs:
     name: "Plan release"
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ github.ref_name }}
+      tag: ${{ steps.version.outputs.tag }}
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: "Extract version from tag"
         id: version
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          # Use input tag for workflow_dispatch, or ref_name for tag push
+          TAG="${INPUT_TAG:-$REF_NAME}"
+          VERSION="${TAG#v}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
   # Build all platform binaries and wheels

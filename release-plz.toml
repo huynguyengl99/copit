@@ -1,0 +1,7 @@
+[workspace]
+# Existing release.yml handles cargo publish and GitHub releases
+publish = false
+git_release_enable = false
+# release-plz creates a git tag on PR merge, which triggers release.yml
+git_tag_enable = true
+git_tag_name = "v{{ version }}"

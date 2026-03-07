@@ -1,0 +1,33 @@
+[package]
+name = "copit"
+version = "0.1.0"
+edition = "2021"
+description = "Copy reusable source code from GitHub repos, HTTP URLs, and ZIP archives into your project"
+license = "MIT"
+repository = "https://github.com/huynguyengl99/copit"
+readme = "README.md"
+keywords = ["cli", "vendoring", "copy", "github", "source-code"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "copit"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive"] }
+dialoguer = "0.12"
+reqwest = { version = "0.13", features = ["json"] }
+serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+toml = "1"
+toml_edit = "0.25"
+zip = "8"
+
+[dev-dependencies]
+assert_cmd = "2.1.2"
+mockito = "1.7.2"
+predicates = "3.1.4"
+tempfile = "3"

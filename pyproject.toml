@@ -1,0 +1,20 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "copit"
+version = "0.1.0"
+description = "Copy reusable source code from GitHub repos, HTTP URLs, and ZIP archives into your project"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+
+[tool.maturin]
+bindings = "bin"
+manifest-path = "Cargo.toml"
+strip = true
+
+[dependency-groups]
+dev = [
+    "prek",
+]

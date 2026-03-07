@@ -3,11 +3,10 @@
 # Usage: ./scripts/release.sh [version]
 # Example: ./scripts/release.sh 0.2.0
 #
-# Uses release-plz to update the changelog and bump the version,
-# then commits, tags, and pushes.
+# Uses release-plz to update the changelog and determine the next version.
+# If a version argument is provided, it overrides the auto-detected version.
 # The tag push triggers the release.yml workflow which builds and publishes.
 #
-# If no version is given, release-plz decides the next version automatically.
 # Requires: cargo install release-plz
 
 set -euo pipefail
@@ -29,27 +28,32 @@ fi
 
 # Check release-plz is installed
 if ! command -v release-plz &>/dev/null; then
-  echo "Error: release-plz not found. Install with: cargo install release-plz"
+  echo "Error: release-plz not found. Install with: cargo install --locked release-plz"
   exit 1
 fi
 
 # Run release-plz to update changelog and bump version
 echo "Running release-plz update..."
-if [ -n "${1:-}" ]; then
-  release-plz update --update-version "$1"
-else
-  release-plz update
-fi
+release-plz update --allow-dirty
 
-# Check if release-plz made any changes
-if git diff --quiet && git diff --cached --quiet; then
-  echo "No changes to release."
-  exit 0
+# If a version was explicitly provided, override what release-plz set
+if [ -n "${1:-}" ]; then
+  VERSION="$1"
+  echo "Overriding version to ${VERSION}..."
+  sed -i.bak "s/^version = \".*\"/version = \"${VERSION}\"/" Cargo.toml
+  rm -f Cargo.toml.bak
+  cargo check --quiet 2>/dev/null || true
 fi
 
 # Extract version from Cargo.toml
 VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
 TAG="v${VERSION}"
+
+# Check if there are any changes to commit
+if git diff --quiet && git diff --cached --quiet; then
+  echo "No changes to release."
+  exit 0
+fi
 
 # Check tag doesn't already exist
 if git rev-parse "$TAG" >/dev/null 2>&1; then

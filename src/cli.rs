@@ -10,7 +10,7 @@ use clap::{Parser, Subcommand};
 #[command(
     name = "copit",
     version,
-    about = "Copy reusable source code into your project"
+    about = "Copy reusable source code from GitHub repos, HTTP URLs, and ZIP archives into your project"
 )]
 pub struct Args {
     #[command(subcommand)]

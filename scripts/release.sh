@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 # Quick local release script.
-# Usage: ./scripts/release.sh <version>
+# Usage: ./scripts/release.sh [version]
 # Example: ./scripts/release.sh 0.2.0
 #
-# This bumps the version in Cargo.toml, commits, tags, and pushes.
+# Uses release-plz to update the changelog and bump the version,
+# then commits, tags, and pushes.
 # The tag push triggers the release.yml workflow which builds and publishes.
+#
+# If no version is given, release-plz decides the next version automatically.
+# Requires: cargo install release-plz
 
 set -euo pipefail
-
-VERSION="${1:?Usage: $0 <version> (e.g. 0.2.0)}"
-TAG="v${VERSION}"
 
 # Ensure we're on main and up to date
 BRANCH=$(git branch --show-current)
@@ -26,21 +27,38 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
   exit 1
 fi
 
+# Check release-plz is installed
+if ! command -v release-plz &>/dev/null; then
+  echo "Error: release-plz not found. Install with: cargo install release-plz"
+  exit 1
+fi
+
+# Run release-plz to update changelog and bump version
+echo "Running release-plz update..."
+if [ -n "${1:-}" ]; then
+  release-plz update --update-version "$1"
+else
+  release-plz update
+fi
+
+# Check if release-plz made any changes
+if git diff --quiet && git diff --cached --quiet; then
+  echo "No changes to release."
+  exit 0
+fi
+
+# Extract version from Cargo.toml
+VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+TAG="v${VERSION}"
+
 # Check tag doesn't already exist
 if git rev-parse "$TAG" >/dev/null 2>&1; then
   echo "Error: tag $TAG already exists"
   exit 1
 fi
 
-# Bump version in Cargo.toml
-sed -i.bak "s/^version = \".*\"/version = \"${VERSION}\"/" Cargo.toml
-rm -f Cargo.toml.bak
-
-# Update Cargo.lock
-cargo check --quiet 2>/dev/null || true
-
 # Commit and tag
-git add Cargo.toml Cargo.lock
+git add -A
 git commit -m "chore: release v${VERSION}"
 git tag "$TAG"
 

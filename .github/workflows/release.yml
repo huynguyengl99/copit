@@ -1,5 +1,5 @@
 # Release workflow:
-# 1. Triggered manually with a version tag
+# 1. Triggered by tag push (created by release-plz)
 # 2. Builds binaries + wheels for all platforms
 # 3. Creates GitHub Release with archives
 # 4. Publishes to PyPI
@@ -7,12 +7,9 @@
 name: Release
 
 on:
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "Release tag (e.g., v0.1.0)"
-        required: true
-        type: string
+  push:
+    tags:
+      - "v*"
 
 permissions: {}
 
@@ -24,31 +21,19 @@ env:
   RUSTUP_MAX_RETRIES: 10
 
 jobs:
-  # Validate the tag and ensure version matches
+  # Extract version from the git tag
   plan:
     name: "Plan release"
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ inputs.tag }}
+      tag: ${{ github.ref_name }}
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          persist-credentials: false
-      - name: "Extract version"
+      - name: "Extract version from tag"
         id: version
-        env:
-          TAG: ${{ inputs.tag }}
         run: |
-          VERSION="${TAG}"
-          VERSION="${VERSION#v}"  # strip leading 'v'
+          VERSION="${GITHUB_REF_NAME#v}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          # Verify Cargo.toml version matches
-          CARGO_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
-          if [ "$VERSION" != "$CARGO_VERSION" ]; then
-            echo "::error::Tag version ($VERSION) does not match Cargo.toml version ($CARGO_VERSION)"
-            exit 1
-          fi
 
   # Build all platform binaries and wheels
   build:
@@ -106,6 +91,8 @@ jobs:
           merge-multiple: true
       - name: "Install uv"
         uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          enable-cache: false
       - name: "Publish to PyPI"
         run: uv publish wheels/*
 

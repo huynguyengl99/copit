@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1] - 2026-03-08
+
+### Bug Fixes
+
+- Update docs with use cases and uninstall instructions ([2b61a61](https://github.com/huynguyengl99/copit/commit/2b61a61c63f2e7fd44fccbb3db95bc99ec406ae3))
+
 ## [0.2.0] - 2026-03-08
 
 ### Bug Fixes
@@ -13,6 +19,10 @@ All notable changes to this project will be documented in this file.
 - Add project docs site with auto-generated CLI reference ([405536e](https://github.com/huynguyengl99/copit/commit/405536ecce05423486584bdaa2251e6a46c70aef))
 - Add uninstall script for copit ([3f8b3b3](https://github.com/huynguyengl99/copit/commit/3f8b3b3177e30425c2f1111cfc8c51139ffff82c))
 - Add versioned docs deployment with mike ([2731045](https://github.com/huynguyengl99/copit/commit/2731045e5446418d4cf659227a49d7b97c7f209a))
+
+### Miscellaneous
+
+- Release v0.2.0 ([62ca5c7](https://github.com/huynguyengl99/copit/commit/62ca5c70332a24b077dbab808d25f37e3643c248))
 
 ## [0.1.0] - 2026-03-08
 

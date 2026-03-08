@@ -122,6 +122,16 @@ uv add --editable /path/to/copit
 uv run copit --help
 ```
 
+### CLI docs
+
+The CLI reference at `docs/commands.md` is auto-generated from clap definitions in `src/cli.rs`. After changing CLI arguments, regenerate it:
+
+```bash
+cargo run --example generate_cli_docs
+```
+
+CI will fail if `docs/commands.md` is out of date.
+
 ### Linting
 
 ```bash
@@ -139,6 +149,8 @@ copit/
 ├── Cargo.toml
 ├── pyproject.toml               # maturin binary distribution
 ├── python/copit/__init__.py     # Python binary locator
+├── examples/
+│   └── generate_cli_docs.rs     # Auto-generate docs/commands.md
 ├── src/
 │   ├── main.rs                  # Entry point
 │   ├── lib.rs                   # Library exports

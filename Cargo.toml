@@ -28,6 +28,7 @@ zip = "8"
 
 [dev-dependencies]
 assert_cmd = "2.1.2"
+clap-markdown = "0.1"
 mockito = "1.7.2"
 predicates = "3.1.4"
 tempfile = "3"

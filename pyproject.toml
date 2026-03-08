@@ -15,7 +15,16 @@ bindings = "bin"
 manifest-path = "Cargo.toml"
 strip = true
 
+[project.urls]
+Documentation = "https://huynguyengl99.github.io/copit/"
+Repository = "https://github.com/huynguyengl99/copit"
+Changelog = "https://github.com/huynguyengl99/copit/blob/main/CHANGELOG.md"
+
 [dependency-groups]
 dev = [
     "prek",
+]
+docs = [
+    "mkdocs-material",
+    "mkdocs>=1.6,<2",
 ]

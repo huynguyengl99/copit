@@ -97,6 +97,24 @@ jobs:
       - name: "Run tests"
         run: cargo test --all-features
 
+  cli-docs-check:
+    name: "cli docs check"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: "Install Rust toolchain"
+        run: rustup show
+      - name: "Regenerate CLI docs"
+        run: cargo run --example generate_cli_docs
+      - name: "Check docs are up-to-date"
+        run: git diff --exit-code docs/commands.md
+
   python-package:
     name: "python package"
     runs-on: ubuntu-latest

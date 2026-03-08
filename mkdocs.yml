@@ -29,6 +29,14 @@ theme:
     - search.highlight
     - content.code.copy
 
+extra:
+  version:
+    provider: mike
+
+plugins:
+  - search
+  - mike
+
 markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true

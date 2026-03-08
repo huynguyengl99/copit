@@ -6,6 +6,7 @@ build-backend = "maturin"
 name = "copit"
 dynamic = ["version"]
 description = "Copy reusable source code from GitHub repos, HTTP URLs, and ZIP archives into your project"
+readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "MIT" }
 

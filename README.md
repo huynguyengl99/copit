@@ -1,5 +1,13 @@
 # copit
 
+[![GitHub release](https://img.shields.io/github/v/release/huynguyengl99/copit)](https://github.com/huynguyengl99/copit/releases)
+[![PyPI](https://img.shields.io/pypi/v/copit)](https://pypi.org/project/copit/)
+[![Crates.io](https://img.shields.io/crates/v/copit)](https://crates.io/crates/copit)
+[![Docs](https://img.shields.io/badge/docs-latest-blue)](https://huynguyengl99.github.io/copit/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/huynguyengl99/copit/blob/main/LICENSE)
+![CI](https://github.com/huynguyengl99/copit/actions/workflows/ci.yml/badge.svg)
+[![codecov](https://codecov.io/gh/huynguyengl99/copit/graph/badge.svg)](https://codecov.io/gh/huynguyengl99/copit)
+
 Copy reusable source code from GitHub repos, HTTP URLs, and ZIP archives into your project.
 
 Inspired by [shadcn/ui](https://ui.shadcn.com/) — instead of installing opaque packages, copit copies

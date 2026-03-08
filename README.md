@@ -6,6 +6,12 @@ Inspired by [shadcn/ui](https://ui.shadcn.com/) — instead of installing opaque
 source code directly into your codebase. The code is yours: readable, modifiable, and fully owned.
 No hidden abstractions, no dependency lock-in. Override anything, keep what you need.
 
+## Use cases
+
+- **Quickly copy and own code** — Pull files from GitHub repos, HTTP URLs, or ZIP archives directly into your project. No forks, no submodules — just your own copy to read, modify, and maintain.
+
+- **Build frameworks with injectable components** — Create a core library as a traditional package, then offer optional components that users copy into their projects via copit. Think of how shadcn/ui is built on top of Tailwind and Radix UI: the base libraries are installed as dependencies, while UI components are copied in and fully owned. Apply the same pattern to any ecosystem — a LangChain-style core as a library, with community integrations (OpenAI, Anthropic, etc.) as injectable source code that users can customize freely.
+
 ## Installation
 
 ### Standalone (recommended)
@@ -37,6 +43,22 @@ uv pip install copit
 ```bash
 cargo install copit
 ```
+
+### Uninstall
+
+If installed via the standalone script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/huynguyengl99/copit/main/uninstall.sh | bash
+```
+
+If installed to a custom directory:
+
+```bash
+INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/huynguyengl99/copit/main/uninstall.sh | bash
+```
+
+For PyPI: `pip uninstall copit`. For Cargo: `cargo uninstall copit`.
 
 ## Quick start
 

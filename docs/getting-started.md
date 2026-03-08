@@ -32,6 +32,22 @@ uv pip install copit
 cargo install copit
 ```
 
+### Uninstall
+
+If installed via the standalone script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/huynguyengl99/copit/main/uninstall.sh | bash
+```
+
+If installed to a custom directory:
+
+```bash
+INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/huynguyengl99/copit/main/uninstall.sh | bash
+```
+
+For PyPI: `pip uninstall copit`. For Cargo: `cargo uninstall copit`.
+
 ## Quick start
 
 ### 1. Initialize your project

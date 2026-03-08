@@ -64,8 +64,10 @@ download() {
 
 # --- Main ---
 
+tmpdir=""
+
 main() {
-    local platform version archive_name archive_url tmpdir
+    local platform version archive_name archive_url
 
     platform="$(detect_platform)"
     info "Detected platform: ${platform}"

@@ -2,11 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.2] - 2026-03-08
+
+### Bug Fixes
+
+- Install script unbound variable error in exit trap ([57926f2](https://github.com/huynguyengl99/copit/commit/57926f2b621987b565aeeb486f230844a1be2e5f))
+
 ## [0.2.1] - 2026-03-08
 
 ### Bug Fixes
 
 - Update docs with use cases and uninstall instructions ([2b61a61](https://github.com/huynguyengl99/copit/commit/2b61a61c63f2e7fd44fccbb3db95bc99ec406ae3))
+
+### Miscellaneous
+
+- Release v0.2.1 ([385based](https://github.com/huynguyengl99/copit/commit/385baedea0b4fce4a0c024febb6fd8940f739605))
 
 ## [0.2.0] - 2026-03-08
 

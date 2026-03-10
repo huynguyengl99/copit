@@ -12,6 +12,21 @@ use super::zip::{extract_from_bytes, ExtractedFiles};
 const GITHUB_ARCHIVE_BASE: &str = "https://github.com";
 const GITHUB_API_BASE: &str = "https://api.github.com";
 
+const LICENSE_NAMES: &[&str] = &[
+    "LICENSE", "LICENSE.md", "LICENSE.txt", "LICENSE-MIT",
+    "LICENSE-APACHE", "LICENCE", "LICENCE.md", "LICENCE.txt",
+    "COPYING", "COPYING.md",
+];
+
+/// Result of fetching from a GitHub repository, separating requested source
+/// files from license files found at the repository root.
+pub struct GitHubFetchResult {
+    /// The files matching the requested path inside the repository.
+    pub files: ExtractedFiles,
+    /// License files (e.g. `LICENSE`, `LICENSE-MIT`) found at the repo root.
+    pub license_files: Vec<(String, Vec<u8>)>,
+}
+
 /// Build a reqwest client with optional GitHub token authentication.
 /// Checks `GITHUB_TOKEN` and `GH_TOKEN` environment variables.
 fn github_client() -> Result<reqwest::Client> {
@@ -41,7 +56,7 @@ pub async fn fetch_github(
     repo: &str,
     version: &str,
     path: &str,
-) -> Result<ExtractedFiles> {
+) -> Result<GitHubFetchResult> {
     fetch_github_from(GITHUB_ARCHIVE_BASE, owner, repo, version, path).await
 }
 
@@ -51,7 +66,7 @@ async fn fetch_github_from(
     repo: &str,
     version: &str,
     path: &str,
-) -> Result<ExtractedFiles> {
+) -> Result<GitHubFetchResult> {
     let url = format!("{base_url}/{owner}/{repo}/archive/{version}.zip");
 
     println!("Downloading {url}...");
@@ -74,7 +89,19 @@ async fn fetch_github_from(
     // We need to find this prefix to strip it
     let strip_prefix = find_archive_prefix(&bytes)?;
 
-    extract_from_bytes(&bytes, Some(path), Some(&strip_prefix))
+    let files = extract_from_bytes(&bytes, Some(path), Some(&strip_prefix))?;
+
+    let mut license_files = Vec::new();
+    let all_root = extract_from_bytes(&bytes, None, Some(&strip_prefix))?;
+    for (name, content) in all_root {
+        if name.contains('/') {
+            continue
+        }
+        if LICENSE_NAMES.iter().any(|l| l.eq_ignore_ascii_case(&name)) {
+            license_files.push((name, content))
+        }
+    }
+    Ok(GitHubFetchResult{files, license_files})
 }
 
 /// Resolve the commit SHA for a given version ref (branch/tag/sha) via the GitHub API.
@@ -254,12 +281,12 @@ mod tests {
             .create_async()
             .await;
 
-        let files = fetch_github_from(&server.url(), "owner", "repo", "main", "src")
+        let result = fetch_github_from(&server.url(), "owner", "repo", "main", "src")
             .await
             .unwrap();
-        assert_eq!(files.len(), 2);
-        assert_eq!(files["src/lib.rs"], b"pub fn hello() {}");
-        assert_eq!(files["src/util.rs"], b"pub fn util() {}");
+        assert_eq!(result.files.len(), 2);
+        assert_eq!(result.files["src/lib.rs"], b"pub fn hello() {}");
+        assert_eq!(result.files["src/util.rs"], b"pub fn util() {}");
         mock.assert_async().await;
     }
 
@@ -278,11 +305,46 @@ mod tests {
             .create_async()
             .await;
 
-        let files = fetch_github_from(&server.url(), "owner", "repo", "v1", "README.md")
+        let result = fetch_github_from(&server.url(), "owner", "repo", "v1", "README.md")
             .await
             .unwrap();
-        assert_eq!(files.len(), 1);
-        assert_eq!(files["README.md"], b"readme");
+        assert_eq!(result.files.len(), 1);
+        assert_eq!(result.files["README.md"], b"readme");
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_fetch_github_extracts_license_files() {
+        let zip_data = create_github_zip(
+            "repo-main/",
+            &[
+                ("src/lib.rs", b"pub fn hello() {}"),
+                ("LICENSE", b"MIT License"),
+                ("LICENSE-APACHE", b"Apache License"),
+            ],
+        );
+
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/owner/repo/archive/main.zip")
+            .with_status(200)
+            .with_body(&zip_data)
+            .create_async()
+            .await;
+
+        let result = fetch_github_from(&server.url(), "owner", "repo", "main", "src")
+            .await
+            .unwrap();
+        assert_eq!(result.files.len(), 1);
+        assert_eq!(result.license_files.len(), 2);
+
+        let license_names: Vec<&str> = result.license_files.iter().map(|(n, _)| n.as_str()).collect();
+        assert!(license_names.contains(&"LICENSE"));
+        assert!(license_names.contains(&"LICENSE-APACHE"));
+
+        let mit = result.license_files.iter().find(|(n, _)| n == "LICENSE").unwrap();
+        assert_eq!(mit.1, b"MIT License");
+
         mock.assert_async().await;
     }
 

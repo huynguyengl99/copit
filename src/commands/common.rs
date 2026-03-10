@@ -203,3 +203,38 @@ pub fn write_file(dest: &Path, contents: &[u8]) -> Result<()> {
         .with_context(|| format!("Failed to write file: {}", dest.display()))?;
     Ok(())
 }
+
+/// Write license files to disk alongside the copied source.
+///
+/// If `licenses_dir` is set, files go into `{licenses_dir}/{owner}-{repo}/`.
+/// Otherwise, for single-file sources they are placed next to the file, and
+/// for directory sources they are placed inside the directory.
+pub fn write_license_files(
+    license_files: &[(String, Vec<u8>)],
+    owner: &str,
+    repo: &str,
+    track_path: &Path,
+    licenses_dir: Option<&str>,
+) -> Result<()> {
+    if license_files.is_empty() {
+        return Ok(());
+    }
+
+    let dest_dir = if let Some(dir) = licenses_dir {
+        PathBuf::from(dir).join(format!("{owner}-{repo}"))
+    } else if track_path.extension().is_some() {
+        // Single file — write license next to it
+        track_path.parent().unwrap_or(Path::new(".")).to_path_buf()
+    } else {
+        // Directory — write license into it
+        track_path.to_path_buf()
+    };
+
+    for (name, contents) in license_files {
+        let dest = dest_dir.join(name);
+        write_file(&dest, contents)?;
+        println!("License: {}", portable_display(&dest));
+    }
+
+    Ok(())
+}

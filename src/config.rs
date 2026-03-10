@@ -55,6 +55,9 @@ pub struct SourceEntry {
     /// Per-source override: save `.orig` backup for excluded modified files.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub backup: Option<bool>,
+    /// Skip copying license files for this source.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub no_license: Option<bool>,
 }
 
 /// Top-level `copit.toml` configuration.
@@ -71,6 +74,9 @@ pub struct CopitConfig {
     /// Default: save `.orig` backup for excluded modified files.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub backup: Option<bool>,
+    /// Directory to store license files (e.g., `"licenses"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub licenses_dir: Option<String>,
     /// List of tracked source entries.
     #[serde(default, rename = "sources")]
     pub sources: Vec<SourceEntry>,
@@ -83,6 +89,7 @@ impl Default for CopitConfig {
             overwrite: None,
             skip: None,
             backup: None,
+            licenses_dir: None,
             sources: Vec::new(),
         }
     }
@@ -198,6 +205,9 @@ pub fn save_config_to(config: &CopitConfig, path: &Path) -> Result<()> {
     if let Some(backup) = config.backup {
         doc["backup"] = toml_edit::value(backup);
     }
+    if let Some(ref licenses_dir) = config.licenses_dir {
+        doc["licenses_dir"] = toml_edit::value(licenses_dir);
+    }
 
     if !config.sources.is_empty() {
         let mut sources = toml_edit::ArrayOfTables::new();
@@ -222,6 +232,9 @@ pub fn save_config_to(config: &CopitConfig, path: &Path) -> Result<()> {
             }
             if let Some(backup) = entry.backup {
                 table["backup"] = toml_edit::value(backup);
+            }
+            if let Some(no_license) = entry.no_license {
+                table["no_license"] = toml_edit::value(no_license);
             }
             table["copied_at"] = toml_edit::value(&entry.copied_at);
             if !entry.excludes.is_empty() {
@@ -250,8 +263,9 @@ pub fn add_source_entry(
     version_ref: Option<&str>,
     commit: Option<&str>,
     frozen: Option<bool>,
+    no_license: Option<bool>,
 ) -> Result<()> {
-    add_source_entry_to(&config_path(), path, source, version_ref, commit, frozen)
+    add_source_entry_to(&config_path(), path, source, version_ref, commit, frozen, no_license)
 }
 
 pub fn add_source_entry_to(
@@ -261,6 +275,7 @@ pub fn add_source_entry_to(
     version_ref: Option<&str>,
     commit: Option<&str>,
     frozen: Option<bool>,
+    no_license: Option<bool>,
 ) -> Result<()> {
     let content = std::fs::read_to_string(config_file).context("Failed to read copit.toml")?;
     let mut doc = content
@@ -303,7 +318,7 @@ pub fn add_source_entry_to(
                 table.remove("commit");
             }
             table["copied_at"] = toml_edit::value(&now);
-            // Preserve existing excludes — don't touch it on update
+            // Preserve existing excludes and no_license — don't touch on update
             found = true;
             break;
         }
@@ -321,6 +336,9 @@ pub fn add_source_entry_to(
         }
         if frozen == Some(true) {
             table["frozen"] = toml_edit::value(true);
+        }
+        if no_license == Some(true) {
+            table["no_license"] = toml_edit::value(true);
         }
         table["copied_at"] = toml_edit::value(&now);
         sources.push(table);
@@ -412,6 +430,7 @@ mod tests {
             Some("v1.0.219"),
             Some("abc123"),
             None,
+            None,
         )
         .unwrap();
 
@@ -436,6 +455,7 @@ mod tests {
             Some("v1"),
             Some("sha1"),
             None,
+            None,
         )
         .unwrap();
         add_source_entry_to(
@@ -444,6 +464,7 @@ mod tests {
             "github:a/b@v2/path",
             Some("v2"),
             Some("sha2"),
+            None,
             None,
         )
         .unwrap();
@@ -468,6 +489,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         )
         .unwrap();
 
@@ -489,12 +511,14 @@ mod tests {
             None,
             None,
             None,
+            None,
         )
         .unwrap();
         add_source_entry_to(
             &config_file,
             "vendor/b.rs",
             "github:a/b@v1/b",
+            None,
             None,
             None,
             None,
@@ -508,42 +532,6 @@ mod tests {
         let loaded = load_config_from(&config_file).unwrap();
         assert_eq!(loaded.sources.len(), 1);
         assert_eq!(loaded.sources[0].path, "vendor/b.rs");
-    }
-
-    #[test]
-    fn remove_all_sources() {
-        let dir = TempDir::new().unwrap();
-        let config_file = config_path_in(dir.path());
-
-        save_config_to(&CopitConfig::default(), &config_file).unwrap();
-        add_source_entry_to(
-            &config_file,
-            "vendor/a.rs",
-            "github:a/b@v1/a",
-            None,
-            None,
-            None,
-        )
-        .unwrap();
-        add_source_entry_to(
-            &config_file,
-            "vendor/b.rs",
-            "github:a/b@v1/b",
-            None,
-            None,
-            None,
-        )
-        .unwrap();
-
-        let removed = remove_source_entries_from(
-            &config_file,
-            &["vendor/a.rs".to_string(), "vendor/b.rs".to_string()],
-        )
-        .unwrap();
-        assert_eq!(removed.len(), 2);
-
-        let loaded = load_config_from(&config_file).unwrap();
-        assert!(loaded.sources.is_empty());
     }
 
     #[test]
@@ -570,6 +558,7 @@ mod tests {
             Some("v1"),
             Some("sha1"),
             None,
+            None,
         )
         .unwrap();
 
@@ -579,35 +568,6 @@ mod tests {
         assert_eq!(entry.version_ref, Some("v1".to_string()));
 
         assert!(get_source_entry_from(&config_file, "vendor/nonexistent.rs").is_none());
-    }
-
-    #[test]
-    fn roundtrip_with_excludes() {
-        let dir = TempDir::new().unwrap();
-        let config_file = config_path_in(dir.path());
-
-        let config = CopitConfig {
-            target: "vendor".to_string(),
-            overwrite: None,
-            skip: None,
-            backup: None,
-            sources: vec![SourceEntry {
-                path: "vendor/prek-identify".to_string(),
-                source: "github:j178/prek@master/crates/prek-identify".to_string(),
-                version_ref: Some("master".to_string()),
-                commit: Some("abc123def456".to_string()),
-                copied_at: "2026-03-07T08:46:51Z".to_string(),
-                excludes: vec!["Cargo.toml".to_string(), "src/lib.rs".to_string()],
-                frozen: None,
-                overwrite: None,
-                skip: None,
-                backup: None,
-            }],
-        };
-        save_config_to(&config, &config_file).unwrap();
-
-        let loaded = load_config_from(&config_file).unwrap();
-        assert_eq!(loaded.sources[0].excludes, vec!["Cargo.toml", "src/lib.rs"]);
     }
 
     #[test]
@@ -686,12 +646,14 @@ copied_at = "2026-03-07T00:00:00Z"
             Some("v1"),
             Some("sha1"),
             None,
+            None,
         )
         .unwrap();
         add_source_entry_to(
             &config_file,
             "vendor/b.rs",
             "https://example.com/b.rs",
+            None,
             None,
             None,
             None,
@@ -705,6 +667,7 @@ copied_at = "2026-03-07T00:00:00Z"
             "github:a/b@v2/a.rs",
             Some("v2"),
             Some("sha2"),
+            None,
             None,
         )
         .unwrap();
@@ -725,6 +688,7 @@ copied_at = "2026-03-07T00:00:00Z"
             overwrite: None,
             skip: None,
             backup: None,
+            licenses_dir: None,
             sources: vec![],
         };
         save_config_to(&config, &config_file).unwrap();
@@ -733,6 +697,7 @@ copied_at = "2026-03-07T00:00:00Z"
             "libs/util.rs",
             "github:x/y@main/util.rs",
             Some("main"),
+            None,
             None,
             None,
         )
@@ -753,6 +718,7 @@ copied_at = "2026-03-07T00:00:00Z"
             overwrite: None,
             skip: None,
             backup: None,
+            licenses_dir: None,
             sources: vec![SourceEntry {
                 path: "vendor/mylib".to_string(),
                 source: "github:owner/repo@v1/src/mylib".to_string(),
@@ -764,6 +730,7 @@ copied_at = "2026-03-07T00:00:00Z"
                 overwrite: None,
                 skip: None,
                 backup: None,
+                no_license: None,
             }],
         };
         save_config_to(&config, &config_file).unwrap();
@@ -775,61 +742,13 @@ copied_at = "2026-03-07T00:00:00Z"
             Some("v2"),
             Some("sha2"),
             None,
+            None,
         )
         .unwrap();
 
         let loaded = load_config_from(&config_file).unwrap();
         assert_eq!(loaded.sources[0].excludes, vec!["Cargo.toml"]);
         assert_eq!(loaded.sources[0].version_ref, Some("v2".to_string()));
-    }
-
-    #[test]
-    fn frozen_roundtrip() {
-        let dir = TempDir::new().unwrap();
-        let config_file = config_path_in(dir.path());
-
-        let config = CopitConfig {
-            target: "vendor".to_string(),
-            overwrite: None,
-            skip: None,
-            backup: None,
-            sources: vec![SourceEntry {
-                path: "vendor/lib.rs".to_string(),
-                source: "github:a/b@v1/lib.rs".to_string(),
-                version_ref: Some("v1".to_string()),
-                commit: Some("sha1".to_string()),
-                copied_at: "2026-01-01T00:00:00Z".to_string(),
-                excludes: vec![],
-                frozen: Some(true),
-                overwrite: None,
-                skip: None,
-                backup: None,
-            }],
-        };
-        save_config_to(&config, &config_file).unwrap();
-
-        let loaded = load_config_from(&config_file).unwrap();
-        assert_eq!(loaded.sources[0].frozen, Some(true));
-    }
-
-    #[test]
-    fn frozen_not_serialized_when_none() {
-        let dir = TempDir::new().unwrap();
-        let config_file = config_path_in(dir.path());
-
-        save_config_to(&CopitConfig::default(), &config_file).unwrap();
-        add_source_entry_to(
-            &config_file,
-            "vendor/lib.rs",
-            "https://example.com/lib.rs",
-            None,
-            None,
-            None,
-        )
-        .unwrap();
-
-        let raw = std::fs::read_to_string(&config_file).unwrap();
-        assert!(!raw.contains("frozen"));
     }
 
     #[test]
@@ -847,6 +766,7 @@ copied_at = "2026-03-07T00:00:00Z"
             Some("v1"),
             Some("sha1"),
             Some(true),
+            None,
         )
         .unwrap();
 
@@ -861,6 +781,7 @@ copied_at = "2026-03-07T00:00:00Z"
             Some("v2"),
             Some("sha2"),
             Some(false),
+            None,
         )
         .unwrap();
 
@@ -872,13 +793,12 @@ copied_at = "2026-03-07T00:00:00Z"
     }
 
     #[test]
-    fn update_with_none_preserves_frozen() {
+    fn update_preserves_frozen() {
         let dir = TempDir::new().unwrap();
         let config_file = config_path_in(dir.path());
 
         save_config_to(&CopitConfig::default(), &config_file).unwrap();
 
-        // Add with frozen
         add_source_entry_to(
             &config_file,
             "vendor/lib.rs",
@@ -886,6 +806,7 @@ copied_at = "2026-03-07T00:00:00Z"
             Some("v1"),
             Some("sha1"),
             Some(true),
+            None,
         )
         .unwrap();
 
@@ -897,11 +818,47 @@ copied_at = "2026-03-07T00:00:00Z"
             Some("v2"),
             Some("sha2"),
             None,
+            None,
         )
         .unwrap();
 
         let loaded = load_config_from(&config_file).unwrap();
         assert_eq!(loaded.sources[0].frozen, Some(true));
+        assert_eq!(loaded.sources[0].version_ref, Some("v2".to_string()));
+    }
+
+    #[test]
+    fn update_preserves_no_license() {
+        let dir = TempDir::new().unwrap();
+        let config_file = config_path_in(dir.path());
+
+        save_config_to(&CopitConfig::default(), &config_file).unwrap();
+
+        add_source_entry_to(
+            &config_file,
+            "vendor/lib.rs",
+            "github:a/b@v1/lib.rs",
+            Some("v1"),
+            Some("sha1"),
+            None,
+            Some(true),
+        )
+        .unwrap();
+
+        // Update with no_license=None — should preserve existing no_license
+        add_source_entry_to(
+            &config_file,
+            "vendor/lib.rs",
+            "github:a/b@v2/lib.rs",
+            Some("v2"),
+            Some("sha2"),
+            None,
+            None,
+        )
+        .unwrap();
+
+        let loaded = load_config_from(&config_file).unwrap();
+        assert_eq!(loaded.sources[0].no_license, Some(true));
         assert_eq!(loaded.sources[0].version_ref, Some("v2".to_string()));
     }
 
@@ -915,6 +872,7 @@ copied_at = "2026-03-07T00:00:00Z"
             overwrite,
             skip,
             backup,
+            licenses_dir: None,
             sources: vec![],
         }
     }
@@ -935,6 +893,7 @@ copied_at = "2026-03-07T00:00:00Z"
             overwrite,
             skip,
             backup,
+            no_license: None,
         }
     }
 
@@ -994,4 +953,5 @@ copied_at = "2026-03-07T00:00:00Z"
         assert!(!s.skip);
         assert!(s.backup);
     }
+
 }

@@ -45,7 +45,7 @@ pub async fn run(cmd: &UpdateCommand) -> Result<()> {
         let settings =
             ResolvedSettings::resolve(cmd.overwrite, cmd.skip, cmd.backup, Some(entry), &cfg);
 
-        update_source(entry, cmd.version_ref.as_deref(), settings, frozen).await?;
+        update_source(entry, cmd.version_ref.as_deref(), settings, frozen, cfg.licenses_dir.as_deref()).await?;
     }
 
     Ok(())
@@ -65,6 +65,7 @@ pub async fn update_source(
     ref_override: Option<&str>,
     settings: ResolvedSettings,
     frozen: Option<bool>,
+    licenses_dir: Option<&str>,
 ) -> Result<()> {
     let source = sources::parse_source(&entry.source)?;
 
@@ -73,7 +74,8 @@ pub async fn update_source(
         None => source,
     };
 
-    let files = super::add::fetch_source(&source).await?;
+    let fetch_result = super::add::fetch_source(&source).await?;
+    let files = fetch_result.files;
 
     if files.is_empty() {
         println!("No files found for {}", source.to_source_string());
@@ -143,7 +145,21 @@ pub async fn update_source(
         version_ref.as_deref(),
         commit.as_deref(),
         frozen,
+        None,
     )?;
+
+    let license_files = fetch_result.license_files;
+    if entry.no_license != Some(true) && !license_files.is_empty() {
+        if let Source::GitHub { owner, repo, .. } = &source {
+            common::write_license_files(
+                &license_files,
+                owner,
+                repo,
+                &track_path,
+                licenses_dir,
+            )?;
+        }
+    }
 
     Ok(())
 }

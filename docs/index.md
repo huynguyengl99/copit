@@ -20,6 +20,7 @@ No hidden abstractions, no dependency lock-in. Override anything, keep what you 
 - **Tracking** — `copit.toml` tracks all copied sources for easy updates
 - **Update & update-all** — Re-fetch individual sources or update all at once
 - **Exclude modified** — Skip files you've customized during updates, with optional `.orig` backups
+- **License auto-copy** — Automatically copies LICENSE files from GitHub repos alongside your source files
 
 ## Quick example
 

@@ -102,6 +102,10 @@ pub struct AddCommand {
     /// Pin this source so update and update-all skip it
     #[arg(long)]
     pub freeze: bool,
+
+    /// Skip copying license files
+    #[arg(long)]
+    pub no_license: bool,
 }
 
 #[derive(Parser)]

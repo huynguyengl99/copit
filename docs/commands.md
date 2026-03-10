@@ -76,6 +76,7 @@ Examples:
 * `--skip` — Skip existing files without prompting
 * `--backup` — Save .orig copy of new version for excluded modified files
 * `--freeze` — Pin this source so update and update-all skip it
+* `--no-license` — Skip copying license files
 
 
 

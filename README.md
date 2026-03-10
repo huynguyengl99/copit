@@ -101,10 +101,11 @@ Arguments:
   [SOURCES]...  Source(s) to add (e.g., github:owner/repo@ref/path, https://...)
 
 Options:
-      --to <TO>    Target directory to copy files into
-      --overwrite  Overwrite existing files without prompting
-      --skip       Skip existing files without prompting
-      --backup     Save .orig copy of new version for excluded modified files
+      --to <TO>      Target directory to copy files into
+      --overwrite    Overwrite existing files without prompting
+      --skip         Skip existing files without prompting
+      --backup       Save .orig copy of new version for excluded modified files
+      --no-license   Skip copying license files
 ```
 
 ### Source formats
@@ -181,11 +182,17 @@ copied_at = "2026-03-07T08:46:51Z"
 excludes = ["Cargo.toml", "src/lib.rs"]
 ```
 
+Root-level fields:
+- `overwrite`/`skip`/`backup`: Project defaults. Priority: CLI flags > per-source > root-level > `false`.
+- `licenses_dir`: Centralized directory for license files. When set, licenses go to `{licenses_dir}/{owner}-{repo}/` instead of next to the source.
+
+Per-source (`[[sources]]`) fields:
 - `ref`: The user-specified version string (branch/tag/sha)
 - `commit`: Resolved commit SHA from GitHub API (optional, GitHub sources only)
 - `excludes`: List of relative paths (within source folder) to skip on re-add. With `--backup`, the new version is saved as `<file>.orig`.
 - `frozen`: Pin this source so it's skipped during `update` and `update-all`.
-- `overwrite`/`skip`/`backup`: Can be set at root level (defaults) or per `[[sources]]` entry (overrides). Priority: CLI flags > per-source > root-level > `false`.
+- `no_license`: Skip copying license files for this source (set via `--no-license` on `add`, respected by `update`/`update-all`).
+- `overwrite`/`skip`/`backup`: Per-source overrides.
 
 See [Configuration](docs/configuration.md) for full details.
 

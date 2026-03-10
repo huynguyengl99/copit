@@ -13,6 +13,15 @@ use crate::sources::{self, Source};
 
 use super::common::{self, portable_display, should_write_existing};
 
+/// Result of fetching a source, containing both the requested files and any
+/// license files found at the repository root (GitHub sources only).
+pub struct FetchResult {
+    /// Fetched source files as `(relative_path, contents)` pairs.
+    pub files: Vec<(String, Vec<u8>)>,
+    /// License files found at the repository root, e.g. `("LICENSE", bytes)`.
+    pub license_files: Vec<(String, Vec<u8>)>,
+}
+
 /// Run the `add` command, fetching and copying each specified source.
 pub async fn run(cmd: &AddCommand) -> Result<()> {
     if cmd.sources.is_empty() {
@@ -28,7 +37,7 @@ pub async fn run(cmd: &AddCommand) -> Result<()> {
 
     for source_str in &cmd.sources {
         let source = sources::parse_source(source_str)?;
-        add_source(&source, base_target, cmd, &settings).await?;
+        add_source(&source, base_target, cmd, &settings, cfg.licenses_dir.as_deref()).await?;
     }
 
     Ok(())
@@ -39,8 +48,10 @@ async fn add_source(
     base_target: &str,
     cmd: &AddCommand,
     settings: &ResolvedSettings,
+    licenses_dir: Option<&str>,
 ) -> Result<()> {
-    let files = fetch_source(source).await?;
+    let fetch_result = fetch_source(source).await?;
+    let files = fetch_result.files;
 
     if files.is_empty() {
         println!("No files found for {}", source.to_source_string());
@@ -120,6 +131,7 @@ async fn add_source(
     };
 
     let frozen = if cmd.freeze { Some(true) } else { None };
+    let no_license = if cmd.no_license { Some(true) } else { None };
 
     config::add_source_entry(
         &track_key,
@@ -127,15 +139,29 @@ async fn add_source(
         version_ref.as_deref(),
         commit.as_deref(),
         frozen,
+        no_license,
     )?;
+    let license_files = fetch_result.license_files;
+    if !cmd.no_license && !license_files.is_empty() {
+        if let Source::GitHub { owner, repo, .. } = source {
+            common::write_license_files(
+                &license_files,
+                owner,
+                repo,
+                &track_path,
+                licenses_dir,
+            )?;
+        }
+    }
 
     Ok(())
 }
 
-/// Fetch files from a source, returning `(relative_path, contents)` pairs.
+/// Fetch files from a source, returning a [`FetchResult`] with source files
+/// and any license files found.
 ///
 /// Dispatches to the appropriate fetcher based on the source type.
-pub async fn fetch_source(source: &Source) -> Result<Vec<(String, Vec<u8>)>> {
+pub async fn fetch_source(source: &Source) -> Result<FetchResult> {
     match source {
         Source::GitHub {
             owner,
@@ -143,18 +169,29 @@ pub async fn fetch_source(source: &Source) -> Result<Vec<(String, Vec<u8>)>> {
             version,
             path,
         } => {
-            let files = sources::github::fetch_github(owner, repo, version, path).await?;
-            Ok(files.into_iter().collect())
+            let result = sources::github::fetch_github(owner, repo, version, path).await?;
+            Ok(
+                FetchResult{
+                    files: result.files.into_iter().collect(),
+                    license_files: result.license_files
+                }
+            )
         }
         Source::Http { url } => {
             let bytes = sources::http::fetch_url(url).await?;
             let filename = url.rsplit('/').next().unwrap_or("downloaded").to_string();
-            Ok(vec![(filename, bytes)])
+            Ok(FetchResult {
+                files: vec![(filename, bytes)],
+                license_files: vec![],
+            })
         }
         Source::Zip { url, inner_path } => {
             let bytes = sources::http::fetch_url(url).await?;
             let files = sources::zip::extract_from_bytes(&bytes, inner_path.as_deref(), None)?;
-            Ok(files.into_iter().collect())
+            Ok(FetchResult {
+                files: files.into_iter().collect(),
+                license_files: vec![],
+            })
         }
     }
 }

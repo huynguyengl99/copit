@@ -173,12 +173,15 @@ pub fn handle_excludes(
 /// Returns `true` if the file should be written, `false` if it should be skipped.
 /// When neither `overwrite` nor `skip` is set, prompts the user interactively.
 pub fn should_write_existing(dest: &Path, overwrite: bool, skip: bool) -> Result<bool> {
-    if !dest.exists() || overwrite {
+    if !dest.exists() {
         return Ok(true);
     }
     if skip {
         println!("Skipping (already exists): {}", portable_display(dest));
         return Ok(false);
+    }
+    if overwrite {
+        return Ok(true);
     }
     Ok(dialoguer::Confirm::new()
         .with_prompt(format!(

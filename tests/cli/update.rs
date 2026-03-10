@@ -504,3 +504,48 @@ copied_at = "2026-01-01T00:00:00Z"
 
     mock.assert_async().await;
 }
+
+#[tokio::test]
+async fn source_skip_overrides_project_overwrite() {
+    let mut server = mockito::Server::new_async().await;
+    let source_url = format!("{}/file.rs", server.url());
+
+    let mock = server
+        .mock("GET", "/file.rs")
+        .with_status(200)
+        .with_body("new content")
+        .create_async()
+        .await;
+
+    let dir = TempDir::new().unwrap();
+    std::fs::write(
+        dir.path().join("copit.toml"),
+        format!(
+            r#"[project]
+target = "vendor"
+overwrite = true
+
+[[sources]]
+path = "vendor/file.rs"
+source = "{source_url}"
+skip = true
+copied_at = "2026-01-01T00:00:00Z"
+"#
+        ),
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.path().join("vendor")).unwrap();
+    std::fs::write(dir.path().join("vendor/file.rs"), "old content").unwrap();
+
+    copit_cmd()
+        .args(["update", "vendor/file.rs"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Skipping (already exists)"));
+
+    let content = std::fs::read_to_string(dir.path().join("vendor/file.rs")).unwrap();
+    assert_eq!(content, "old content");
+
+    mock.assert_async().await;
+}

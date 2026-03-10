@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use crate::cli::UpdateCommand;
 use crate::commands::common::should_write_existing;
-use crate::config::{self, SourceEntry};
+use crate::config::{self, ResolvedSettings, SourceEntry};
 use crate::sources::{self, Source};
 
 use super::common;
@@ -42,21 +42,24 @@ pub async fn run(cmd: &UpdateCommand) -> Result<()> {
             continue;
         }
 
-        update_source(
-            entry,
-            cmd.version_ref.as_deref(),
-            cmd.backup,
+        let settings = ResolvedSettings::resolve(
             cmd.overwrite,
             cmd.skip,
-            frozen,
-        )
-        .await?;
+            cmd.backup,
+            Some(entry),
+            &cfg.project,
+        );
+
+        update_source(entry, cmd.version_ref.as_deref(), settings, frozen).await?;
     }
 
     Ok(())
 }
 
 /// Re-fetch a single tracked source, optionally overriding the version ref.
+///
+/// `settings` controls file-handling behavior (overwrite, skip, backup),
+/// already resolved from CLI flags, per-source config, and project defaults.
 ///
 /// `frozen` controls the frozen flag in `copit.toml`: `Some(true)` sets it,
 /// `Some(false)` removes it, and `None` leaves it unchanged.
@@ -65,9 +68,7 @@ pub async fn run(cmd: &UpdateCommand) -> Result<()> {
 pub async fn update_source(
     entry: &SourceEntry,
     ref_override: Option<&str>,
-    backup: bool,
-    overwrite: bool,
-    skip: bool,
+    settings: ResolvedSettings,
     frozen: Option<bool>,
 ) -> Result<()> {
     let source = sources::parse_source(&entry.source)?;
@@ -109,11 +110,17 @@ pub async fn update_source(
         };
 
         // Check if this file is in excludes
-        if common::handle_excludes(&dest, &track_path, &entry.excludes, contents, backup)? {
+        if common::handle_excludes(
+            &dest,
+            &track_path,
+            &entry.excludes,
+            contents,
+            settings.backup,
+        )? {
             continue;
         }
 
-        if !should_write_existing(&dest, overwrite, skip)? {
+        if !should_write_existing(&dest, settings.overwrite, settings.skip)? {
             continue;
         }
 

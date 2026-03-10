@@ -186,6 +186,9 @@ excludes = ["Cargo.toml", "src/lib.rs"]
 - `commit`: Resolved commit SHA from GitHub API (optional, GitHub sources only)
 - `excludes`: List of relative paths (within source folder) to skip on re-add. With `--backup`, the new version is saved as `<file>.orig`.
 - `frozen`: Pin this source so it's skipped during `update` and `update-all`.
+- `overwrite`/`skip`/`backup`: Can be set at `[project]` level (defaults) or per `[[sources]]` entry (overrides). Priority: CLI flags > per-source > project > `false`.
+
+See [Configuration](docs/configuration.md) for full details.
 
 ## License
 

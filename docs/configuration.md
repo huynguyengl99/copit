@@ -41,3 +41,8 @@ Each entry in the `sources` array represents one copied source:
 | `copied_at` | Timestamp of when the source was last copied |
 | `excludes` | List of relative paths within the source to skip on re-add. With `--backup`, the new version is saved as `<file>.orig` |
 | `frozen` | Pin this source so it's skipped during updates |
+| `overwrite` | Per-source override: overwrite existing files without prompting |
+| `skip` | Per-source override: skip existing files without prompting |
+| `backup` | Per-source override: save `.orig` backup for excluded modified files |
+
+Settings priority: CLI flags > per-source config > project config > default (`false`).

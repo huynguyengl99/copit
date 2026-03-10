@@ -7,6 +7,7 @@ use anyhow::{bail, Context, Result};
 
 use crate::cli::UpdateAllCommand;
 use crate::config;
+use crate::config::ResolvedSettings;
 
 /// Run the `update-all` command, re-fetching all tracked sources.
 ///
@@ -34,15 +35,16 @@ pub async fn run(cmd: &UpdateAllCommand) -> Result<()> {
             continue;
         }
         println!("Updating all {}...", entry.path);
-        super::update::update_source(
-            entry,
-            cmd.version_ref.as_deref(),
-            cmd.backup,
+
+        let settings = ResolvedSettings::resolve(
             cmd.overwrite,
             cmd.skip,
-            None,
-        )
-        .await?;
+            cmd.backup,
+            Some(entry),
+            &cfg.project,
+        );
+
+        super::update::update_source(entry, cmd.version_ref.as_deref(), settings, None).await?;
     }
 
     Ok(())

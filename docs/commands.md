@@ -131,6 +131,8 @@ Examples:
 
 * `--ref <VERSION_REF>` — Override the version ref for this update
 * `--backup` — Save .orig copy of new version for excluded modified files
+* `--overwrite` — Overwrite existing files without prompting
+* `--skip` — Skip existing files without prompting
 * `--freeze` — Pin this source so update and update-all skip it
 * `--unfreeze` — Unpin this source so it can be updated again
 
@@ -154,6 +156,8 @@ Examples:
 
 * `--ref <VERSION_REF>` — Override the version ref (only valid with a single source)
 * `--backup` — Save .orig copy of new version for excluded modified files
+* `--overwrite` — Overwrite existing files without prompting
+* `--skip` — Skip existing files without prompting
 
 
 

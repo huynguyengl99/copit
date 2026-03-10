@@ -31,6 +31,15 @@ const CONFIG_FILE: &str = "copit.toml";
 pub struct ProjectConfig {
     /// Default target directory for copied files (e.g., `"vendor"`).
     pub target: String,
+    /// Default: overwrite existing files without prompting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub overwrite: Option<bool>,
+    /// Default: skip existing files without prompting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skip: Option<bool>,
+    /// Default: save `.orig` backup for excluded modified files.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backup: Option<bool>,
 }
 
 /// A single tracked source entry (one `[[sources]]` table).
@@ -51,8 +60,18 @@ pub struct SourceEntry {
     /// Relative paths within the source to skip on update (user-modified files).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub excludes: Vec<String>,
+    /// Pin this source so it's skipped during updates.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub frozen: Option<bool>,
+    /// Per-source override: overwrite existing files without prompting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub overwrite: Option<bool>,
+    /// Per-source override: skip existing files without prompting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skip: Option<bool>,
+    /// Per-source override: save `.orig` backup for excluded modified files.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backup: Option<bool>,
 }
 
 /// Top-level `copit.toml` configuration.
@@ -70,9 +89,59 @@ impl Default for CopitConfig {
         Self {
             project: ProjectConfig {
                 target: "vendor".to_string(),
+                overwrite: None,
+                skip: None,
+                backup: None,
             },
             sources: Vec::new(),
         }
+    }
+}
+
+/// Resolved file-handling settings after applying the priority chain.
+///
+/// Priority: CLI flag (if `true`) > per-source config > project config > `false`.
+#[derive(Debug)]
+pub struct ResolvedSettings {
+    pub overwrite: bool,
+    pub skip: bool,
+    pub backup: bool,
+}
+
+impl ResolvedSettings {
+    /// Resolve settings from CLI flags, per-source overrides, and project defaults.
+    ///
+    /// Each setting follows the same priority chain:
+    /// 1. CLI flag — wins if `true` (explicit user intent)
+    /// 2. Per-source config (`[[sources]]` entry)
+    /// 3. Project config (`[project]` table)
+    /// 4. Default: `false`
+    pub fn resolve(
+        cli_overwrite: bool,
+        cli_skip: bool,
+        cli_backup: bool,
+        source: Option<&SourceEntry>,
+        project: &ProjectConfig,
+    ) -> Self {
+        Self {
+            overwrite: Self::resolve_flag(
+                cli_overwrite,
+                source.and_then(|s| s.overwrite),
+                project.overwrite,
+            ),
+            skip: Self::resolve_flag(cli_skip, source.and_then(|s| s.skip), project.skip),
+            backup: Self::resolve_flag(cli_backup, source.and_then(|s| s.backup), project.backup),
+        }
+    }
+
+    fn resolve_flag(cli: bool, source: Option<bool>, project: Option<bool>) -> bool {
+        if cli {
+            return true;
+        }
+        if let Some(v) = source {
+            return v;
+        }
+        project.unwrap_or(false)
     }
 }
 
@@ -131,6 +200,15 @@ pub fn save_config_to(config: &CopitConfig, path: &Path) -> Result<()> {
 
     let mut project = toml_edit::Table::new();
     project["target"] = toml_edit::value(&config.project.target);
+    if let Some(overwrite) = config.project.overwrite {
+        project["overwrite"] = toml_edit::value(overwrite);
+    }
+    if let Some(skip) = config.project.skip {
+        project["skip"] = toml_edit::value(skip);
+    }
+    if let Some(backup) = config.project.backup {
+        project["backup"] = toml_edit::value(backup);
+    }
     doc["project"] = toml_edit::Item::Table(project);
 
     if !config.sources.is_empty() {
@@ -147,6 +225,15 @@ pub fn save_config_to(config: &CopitConfig, path: &Path) -> Result<()> {
             }
             if let Some(frozen) = entry.frozen {
                 table["frozen"] = toml_edit::value(frozen);
+            }
+            if let Some(overwrite) = entry.overwrite {
+                table["overwrite"] = toml_edit::value(overwrite);
+            }
+            if let Some(skip) = entry.skip {
+                table["skip"] = toml_edit::value(skip);
+            }
+            if let Some(backup) = entry.backup {
+                table["backup"] = toml_edit::value(backup);
             }
             table["copied_at"] = toml_edit::value(&entry.copied_at);
             if !entry.excludes.is_empty() {
@@ -514,6 +601,9 @@ mod tests {
         let config = CopitConfig {
             project: ProjectConfig {
                 target: "vendor".to_string(),
+                overwrite: None,
+                skip: None,
+                backup: None,
             },
             sources: vec![SourceEntry {
                 path: "vendor/prek-identify".to_string(),
@@ -523,6 +613,9 @@ mod tests {
                 copied_at: "2026-03-07T08:46:51Z".to_string(),
                 excludes: vec!["Cargo.toml".to_string(), "src/lib.rs".to_string()],
                 frozen: None,
+                overwrite: None,
+                skip: None,
+                backup: None,
             }],
         };
         save_config_to(&config, &config_file).unwrap();
@@ -646,6 +739,9 @@ copied_at = "2026-03-07T00:00:00Z"
         let config = CopitConfig {
             project: ProjectConfig {
                 target: "libs".to_string(),
+                overwrite: None,
+                skip: None,
+                backup: None,
             },
             sources: vec![],
         };
@@ -673,6 +769,9 @@ copied_at = "2026-03-07T00:00:00Z"
         let config = CopitConfig {
             project: ProjectConfig {
                 target: "vendor".to_string(),
+                overwrite: None,
+                skip: None,
+                backup: None,
             },
             sources: vec![SourceEntry {
                 path: "vendor/mylib".to_string(),
@@ -682,6 +781,9 @@ copied_at = "2026-03-07T00:00:00Z"
                 copied_at: "2026-01-01T00:00:00Z".to_string(),
                 excludes: vec!["Cargo.toml".to_string()],
                 frozen: None,
+                overwrite: None,
+                skip: None,
+                backup: None,
             }],
         };
         save_config_to(&config, &config_file).unwrap();
@@ -709,6 +811,9 @@ copied_at = "2026-03-07T00:00:00Z"
         let config = CopitConfig {
             project: ProjectConfig {
                 target: "vendor".to_string(),
+                overwrite: None,
+                skip: None,
+                backup: None,
             },
             sources: vec![SourceEntry {
                 path: "vendor/lib.rs".to_string(),
@@ -718,6 +823,9 @@ copied_at = "2026-03-07T00:00:00Z"
                 copied_at: "2026-01-01T00:00:00Z".to_string(),
                 excludes: vec![],
                 frozen: Some(true),
+                overwrite: None,
+                skip: None,
+                backup: None,
             }],
         };
         save_config_to(&config, &config_file).unwrap();
@@ -817,5 +925,94 @@ copied_at = "2026-03-07T00:00:00Z"
         let loaded = load_config_from(&config_file).unwrap();
         assert_eq!(loaded.sources[0].frozen, Some(true));
         assert_eq!(loaded.sources[0].version_ref, Some("v2".to_string()));
+    }
+
+    fn make_project(
+        overwrite: Option<bool>,
+        skip: Option<bool>,
+        backup: Option<bool>,
+    ) -> ProjectConfig {
+        ProjectConfig {
+            target: "vendor".to_string(),
+            overwrite,
+            skip,
+            backup,
+        }
+    }
+
+    fn make_entry(
+        overwrite: Option<bool>,
+        skip: Option<bool>,
+        backup: Option<bool>,
+    ) -> SourceEntry {
+        SourceEntry {
+            path: "vendor/lib.rs".to_string(),
+            source: "https://example.com/lib.rs".to_string(),
+            version_ref: None,
+            commit: None,
+            copied_at: "2026-01-01T00:00:00Z".to_string(),
+            excludes: vec![],
+            frozen: None,
+            overwrite,
+            skip,
+            backup,
+        }
+    }
+
+    #[test]
+    fn resolved_settings_default_all_false() {
+        let project = make_project(None, None, None);
+        let s = ResolvedSettings::resolve(false, false, false, None, &project);
+        assert!(!s.overwrite);
+        assert!(!s.skip);
+        assert!(!s.backup);
+    }
+
+    #[test]
+    fn resolved_settings_cli_wins() {
+        let project = make_project(None, None, None);
+        let s = ResolvedSettings::resolve(true, true, true, None, &project);
+        assert!(s.overwrite);
+        assert!(s.skip);
+        assert!(s.backup);
+    }
+
+    #[test]
+    fn resolved_settings_project_defaults() {
+        let project = make_project(Some(true), Some(true), Some(true));
+        let s = ResolvedSettings::resolve(false, false, false, None, &project);
+        assert!(s.overwrite);
+        assert!(s.skip);
+        assert!(s.backup);
+    }
+
+    #[test]
+    fn resolved_settings_source_overrides_project() {
+        let project = make_project(Some(true), Some(true), Some(true));
+        let entry = make_entry(Some(false), Some(false), Some(false));
+        let s = ResolvedSettings::resolve(false, false, false, Some(&entry), &project);
+        assert!(!s.overwrite);
+        assert!(!s.skip);
+        assert!(!s.backup);
+    }
+
+    #[test]
+    fn resolved_settings_cli_overrides_source() {
+        let project = make_project(None, None, None);
+        let entry = make_entry(Some(false), Some(false), Some(false));
+        let s = ResolvedSettings::resolve(true, true, true, Some(&entry), &project);
+        assert!(s.overwrite);
+        assert!(s.skip);
+        assert!(s.backup);
+    }
+
+    #[test]
+    fn resolved_settings_source_none_falls_through_to_project() {
+        let project = make_project(Some(true), None, Some(true));
+        let entry = make_entry(None, None, None);
+        let s = ResolvedSettings::resolve(false, false, false, Some(&entry), &project);
+        assert!(s.overwrite);
+        assert!(!s.skip);
+        assert!(s.backup);
     }
 }

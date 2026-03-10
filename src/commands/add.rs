@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 
 use crate::cli::AddCommand;
 use crate::config;
+use crate::config::ResolvedSettings;
 use crate::sources::{self, Source};
 
 use super::common::{self, portable_display, should_write_existing};
@@ -23,15 +24,23 @@ pub async fn run(cmd: &AddCommand) -> Result<()> {
 
     let base_target = cmd.to.as_deref().unwrap_or(&cfg.project.target);
 
+    let settings =
+        ResolvedSettings::resolve(cmd.overwrite, cmd.skip, cmd.backup, None, &cfg.project);
+
     for source_str in &cmd.sources {
         let source = sources::parse_source(source_str)?;
-        add_source(&source, base_target, cmd).await?;
+        add_source(&source, base_target, cmd, &settings).await?;
     }
 
     Ok(())
 }
 
-async fn add_source(source: &Source, base_target: &str, cmd: &AddCommand) -> Result<()> {
+async fn add_source(
+    source: &Source,
+    base_target: &str,
+    cmd: &AddCommand,
+    settings: &ResolvedSettings,
+) -> Result<()> {
     let files = fetch_source(source).await?;
 
     if files.is_empty() {
@@ -84,7 +93,7 @@ async fn add_source(source: &Source, base_target: &str, cmd: &AddCommand) -> Res
         // Validate no path traversal
         common::validate_no_path_traversal(&dest, base_target)?;
 
-        if !should_write_existing(&dest, cmd.overwrite, cmd.skip)? {
+        if !should_write_existing(&dest, settings.overwrite, settings.skip)? {
             continue;
         }
 

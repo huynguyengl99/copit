@@ -13,18 +13,13 @@ fn creates_config() {
 
     assert!(dir.path().join("copit.toml").exists());
     let content = std::fs::read_to_string(dir.path().join("copit.toml")).unwrap();
-    assert!(content.contains("[project]"));
     assert!(content.contains("target"));
 }
 
 #[test]
 fn fails_if_already_exists() {
     let dir = TempDir::new().unwrap();
-    std::fs::write(
-        dir.path().join("copit.toml"),
-        "[project]\ntarget = \"vendor\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
 
     copit_cmd()
         .arg("init")

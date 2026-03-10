@@ -10,11 +10,7 @@ use super::{copit_cmd, create_zip};
 #[test]
 fn no_sources() {
     let dir = TempDir::new().unwrap();
-    std::fs::write(
-        dir.path().join("copit.toml"),
-        "[project]\ntarget = \"vendor\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
 
     copit_cmd()
         .arg("add")
@@ -51,11 +47,7 @@ async fn http_source_full_flow() {
         .await;
 
     let dir = TempDir::new().unwrap();
-    std::fs::write(
-        dir.path().join("copit.toml"),
-        "[project]\ntarget = \"vendor\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
 
     copit_cmd()
         .args(["add", &format!("{}/utils.rs", server.url()), "--overwrite"])
@@ -85,11 +77,7 @@ async fn skip_existing() {
         .await;
 
     let dir = TempDir::new().unwrap();
-    std::fs::write(
-        dir.path().join("copit.toml"),
-        "[project]\ntarget = \"vendor\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
     std::fs::create_dir_all(dir.path().join("vendor")).unwrap();
     std::fs::write(dir.path().join("vendor/file.rs"), "old content").unwrap();
 
@@ -117,11 +105,7 @@ async fn overwrite_existing() {
         .await;
 
     let dir = TempDir::new().unwrap();
-    std::fs::write(
-        dir.path().join("copit.toml"),
-        "[project]\ntarget = \"vendor\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
     std::fs::create_dir_all(dir.path().join("vendor")).unwrap();
     std::fs::write(dir.path().join("vendor/file.rs"), "old content").unwrap();
 
@@ -149,11 +133,7 @@ async fn custom_target() {
         .await;
 
     let dir = TempDir::new().unwrap();
-    std::fs::write(
-        dir.path().join("copit.toml"),
-        "[project]\ntarget = \"vendor\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
 
     copit_cmd()
         .args([
@@ -189,11 +169,7 @@ async fn multiple_sources() {
         .await;
 
     let dir = TempDir::new().unwrap();
-    std::fs::write(
-        dir.path().join("copit.toml"),
-        "[project]\ntarget = \"vendor\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
 
     copit_cmd()
         .args([
@@ -227,11 +203,7 @@ async fn fetch_failure() {
         .await;
 
     let dir = TempDir::new().unwrap();
-    std::fs::write(
-        dir.path().join("copit.toml"),
-        "[project]\ntarget = \"vendor\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
 
     copit_cmd()
         .args(["add", &format!("{}/fail.rs", server.url())])
@@ -262,11 +234,7 @@ async fn zip_source() {
         .await;
 
     let dir = TempDir::new().unwrap();
-    std::fs::write(
-        dir.path().join("copit.toml"),
-        "[project]\ntarget = \"vendor\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
 
     copit_cmd()
         .args([
@@ -303,8 +271,7 @@ async fn already_tracked_skips() {
     let dir = TempDir::new().unwrap();
     std::fs::write(
         dir.path().join("copit.toml"),
-        r#"[project]
-target = "vendor"
+        r#"target = "vendor"
 
 [[sources]]
 path = "vendor/file.rs"
@@ -344,11 +311,7 @@ async fn add_with_freeze_flag() {
         .await;
 
     let dir = TempDir::new().unwrap();
-    std::fs::write(
-        dir.path().join("copit.toml"),
-        "[project]\ntarget = \"vendor\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
 
     copit_cmd()
         .args(["add", &format!("{}/lib.rs", server.url()), "--freeze"])
@@ -374,11 +337,7 @@ async fn add_without_freeze_flag() {
         .await;
 
     let dir = TempDir::new().unwrap();
-    std::fs::write(
-        dir.path().join("copit.toml"),
-        "[project]\ntarget = \"vendor\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
 
     copit_cmd()
         .args(["add", &format!("{}/lib.rs", server.url())])

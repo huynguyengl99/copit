@@ -42,13 +42,8 @@ pub async fn run(cmd: &UpdateCommand) -> Result<()> {
             continue;
         }
 
-        let settings = ResolvedSettings::resolve(
-            cmd.overwrite,
-            cmd.skip,
-            cmd.backup,
-            Some(entry),
-            &cfg.project,
-        );
+        let settings =
+            ResolvedSettings::resolve(cmd.overwrite, cmd.skip, cmd.backup, Some(entry), &cfg);
 
         update_source(entry, cmd.version_ref.as_deref(), settings, frozen).await?;
     }
@@ -59,7 +54,7 @@ pub async fn run(cmd: &UpdateCommand) -> Result<()> {
 /// Re-fetch a single tracked source, optionally overriding the version ref.
 ///
 /// `settings` controls file-handling behavior (overwrite, skip, backup),
-/// already resolved from CLI flags, per-source config, and project defaults.
+/// already resolved from CLI flags, per-source config, and config defaults.
 ///
 /// `frozen` controls the frozen flag in `copit.toml`: `Some(true)` sets it,
 /// `Some(false)` removes it, and `None` leaves it unchanged.

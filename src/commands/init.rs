@@ -20,7 +20,7 @@ pub fn run() -> Result<()> {
 
     println!(
         "Created copit.toml with target directory: {}",
-        config.project.target
+        config.target
     );
     Ok(())
 }

@@ -5,11 +5,7 @@ use super::copit_cmd;
 #[test]
 fn no_args() {
     let dir = TempDir::new().unwrap();
-    std::fs::write(
-        dir.path().join("copit.toml"),
-        "[project]\ntarget = \"vendor\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
 
     copit_cmd()
         .arg("remove")
@@ -22,11 +18,7 @@ fn no_args() {
 #[test]
 fn alias_rm() {
     let dir = TempDir::new().unwrap();
-    std::fs::write(
-        dir.path().join("copit.toml"),
-        "[project]\ntarget = \"vendor\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
 
     copit_cmd()
         .args(["rm", "vendor/nonexistent.rs"])
@@ -39,11 +31,7 @@ fn alias_rm() {
 #[test]
 fn all_empty() {
     let dir = TempDir::new().unwrap();
-    std::fs::write(
-        dir.path().join("copit.toml"),
-        "[project]\ntarget = \"vendor\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
 
     copit_cmd()
         .args(["remove", "--all"])
@@ -59,8 +47,7 @@ fn tracked_file() {
     let config_file = dir.path().join("copit.toml");
     std::fs::write(
         &config_file,
-        r#"[project]
-target = "vendor"
+        r#"target = "vendor"
 
 [[sources]]
 path = "vendor/file.txt"
@@ -91,8 +78,7 @@ fn all_tracked() {
     let dir = TempDir::new().unwrap();
     std::fs::write(
         dir.path().join("copit.toml"),
-        r#"[project]
-target = "vendor"
+        r#"target = "vendor"
 
 [[sources]]
 path = "vendor/a.txt"

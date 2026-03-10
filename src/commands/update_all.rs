@@ -36,13 +36,8 @@ pub async fn run(cmd: &UpdateAllCommand) -> Result<()> {
         }
         println!("Updating all {}...", entry.path);
 
-        let settings = ResolvedSettings::resolve(
-            cmd.overwrite,
-            cmd.skip,
-            cmd.backup,
-            Some(entry),
-            &cfg.project,
-        );
+        let settings =
+            ResolvedSettings::resolve(cmd.overwrite, cmd.skip, cmd.backup, Some(entry), &cfg);
 
         super::update::update_source(entry, cmd.version_ref.as_deref(), settings, None).await?;
     }

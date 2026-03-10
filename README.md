@@ -170,7 +170,6 @@ copit rm --all
 `copit.toml` tracks your project's target directory and all copied sources:
 
 ```toml
-[project]
 target = "vendor"
 
 [[sources]]
@@ -186,7 +185,7 @@ excludes = ["Cargo.toml", "src/lib.rs"]
 - `commit`: Resolved commit SHA from GitHub API (optional, GitHub sources only)
 - `excludes`: List of relative paths (within source folder) to skip on re-add. With `--backup`, the new version is saved as `<file>.orig`.
 - `frozen`: Pin this source so it's skipped during `update` and `update-all`.
-- `overwrite`/`skip`/`backup`: Can be set at `[project]` level (defaults) or per `[[sources]]` entry (overrides). Priority: CLI flags > per-source > project > `false`.
+- `overwrite`/`skip`/`backup`: Can be set at root level (defaults) or per `[[sources]]` entry (overrides). Priority: CLI flags > per-source > root-level > `false`.
 
 See [Configuration](docs/configuration.md) for full details.
 

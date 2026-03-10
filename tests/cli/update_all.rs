@@ -18,11 +18,7 @@ fn no_config() {
 #[test]
 fn no_sources() {
     let dir = TempDir::new().unwrap();
-    std::fs::write(
-        dir.path().join("copit.toml"),
-        "[project]\ntarget = \"vendor\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
 
     copit_cmd()
         .arg("update-all")
@@ -37,8 +33,7 @@ fn ref_with_multiple_sources_errors() {
     let dir = TempDir::new().unwrap();
     std::fs::write(
         dir.path().join("copit.toml"),
-        r#"[project]
-target = "vendor"
+        r#"target = "vendor"
 
 [[sources]]
 path = "vendor/a"
@@ -68,8 +63,7 @@ fn ref_with_single_source_accepted() {
     let dir = TempDir::new().unwrap();
     std::fs::write(
         dir.path().join("copit.toml"),
-        r#"[project]
-target = "vendor"
+        r#"target = "vendor"
 
 [[sources]]
 path = "vendor/a"
@@ -122,8 +116,7 @@ async fn single_http_source() {
     std::fs::write(
         dir.path().join("copit.toml"),
         format!(
-            r#"[project]
-target = "vendor"
+            r#"target = "vendor"
 
 [[sources]]
 path = "vendor/lib.rs"
@@ -172,8 +165,7 @@ async fn multiple_sources() {
     std::fs::write(
         dir.path().join("copit.toml"),
         format!(
-            r#"[project]
-target = "vendor"
+            r#"target = "vendor"
 
 [[sources]]
 path = "vendor/a.rs"
@@ -229,8 +221,7 @@ async fn skip_existing() {
     std::fs::write(
         dir.path().join("copit.toml"),
         format!(
-            r#"[project]
-target = "vendor"
+            r#"target = "vendor"
 
 [[sources]]
 path = "vendor/lib.rs"
@@ -274,8 +265,7 @@ async fn skips_frozen_sources() {
     std::fs::write(
         dir.path().join("copit.toml"),
         format!(
-            r#"[project]
-target = "vendor"
+            r#"target = "vendor"
 
 [[sources]]
 path = "vendor/utils.rs"

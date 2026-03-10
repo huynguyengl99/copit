@@ -6,11 +6,7 @@ use super::{copit_cmd, create_zip};
 #[test]
 fn no_args() {
     let dir = TempDir::new().unwrap();
-    std::fs::write(
-        dir.path().join("copit.toml"),
-        "[project]\ntarget = \"vendor\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
 
     copit_cmd()
         .arg("update")
@@ -35,11 +31,7 @@ fn no_config() {
 #[test]
 fn nonexistent_path() {
     let dir = TempDir::new().unwrap();
-    std::fs::write(
-        dir.path().join("copit.toml"),
-        "[project]\ntarget = \"vendor\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
 
     copit_cmd()
         .args(["update", "vendor/nonexistent"])
@@ -78,8 +70,7 @@ async fn http_source() {
     std::fs::write(
         dir.path().join("copit.toml"),
         format!(
-            r#"[project]
-target = "vendor"
+            r#"target = "vendor"
 
 [[sources]]
 path = "vendor/file.rs"
@@ -127,8 +118,7 @@ async fn excludes_modified() {
     std::fs::write(
         dir.path().join("copit.toml"),
         format!(
-            r#"[project]
-target = "vendor"
+            r#"target = "vendor"
 
 [[sources]]
 path = "vendor/mylib"
@@ -182,8 +172,7 @@ async fn excludes_modified_with_backup() {
     std::fs::write(
         dir.path().join("copit.toml"),
         format!(
-            r#"[project]
-target = "vendor"
+            r#"target = "vendor"
 
 [[sources]]
 path = "vendor/mylib"
@@ -238,8 +227,7 @@ async fn creates_parent_dirs() {
     std::fs::write(
         dir.path().join("copit.toml"),
         format!(
-            r#"[project]
-target = "vendor"
+            r#"target = "vendor"
 
 [[sources]]
 path = "vendor/deep/nested/deep.rs"
@@ -274,8 +262,7 @@ async fn fetch_failure() {
     std::fs::write(
         dir.path().join("copit.toml"),
         format!(
-            r#"[project]
-target = "vendor"
+            r#"target = "vendor"
 
 [[sources]]
 path = "vendor/file.rs"
@@ -309,8 +296,7 @@ async fn skip_existing() {
     std::fs::write(
         dir.path().join("copit.toml"),
         format!(
-            r#"[project]
-target = "vendor"
+            r#"target = "vendor"
 
 [[sources]]
 path = "vendor/file.rs"
@@ -351,8 +337,7 @@ async fn overwrite_existing() {
     std::fs::write(
         dir.path().join("copit.toml"),
         format!(
-            r#"[project]
-target = "vendor"
+            r#"target = "vendor"
 
 [[sources]]
 path = "vendor/file.rs"
@@ -395,8 +380,7 @@ async fn skips_frozen_source() {
     std::fs::write(
         dir.path().join("copit.toml"),
         format!(
-            r#"[project]
-target = "vendor"
+            r#"target = "vendor"
 
 [[sources]]
 path = "vendor/file.rs"
@@ -434,8 +418,7 @@ async fn unfreeze_bypasses_frozen() {
     std::fs::write(
         dir.path().join("copit.toml"),
         format!(
-            r#"[project]
-target = "vendor"
+            r#"target = "vendor"
 
 [[sources]]
 path = "vendor/file.rs"
@@ -478,8 +461,7 @@ async fn freeze_flag_sets_frozen() {
     std::fs::write(
         dir.path().join("copit.toml"),
         format!(
-            r#"[project]
-target = "vendor"
+            r#"target = "vendor"
 
 [[sources]]
 path = "vendor/file.rs"
@@ -521,8 +503,7 @@ async fn source_skip_overrides_project_overwrite() {
     std::fs::write(
         dir.path().join("copit.toml"),
         format!(
-            r#"[project]
-target = "vendor"
+            r#"target = "vendor"
 overwrite = true
 
 [[sources]]

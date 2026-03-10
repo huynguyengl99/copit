@@ -22,10 +22,9 @@ pub async fn run(cmd: &AddCommand) -> Result<()> {
     let cfg =
         config::load_config().context("Failed to load copit.toml. Run `copit init` first.")?;
 
-    let base_target = cmd.to.as_deref().unwrap_or(&cfg.project.target);
+    let base_target = cmd.to.as_deref().unwrap_or(&cfg.target);
 
-    let settings =
-        ResolvedSettings::resolve(cmd.overwrite, cmd.skip, cmd.backup, None, &cfg.project);
+    let settings = ResolvedSettings::resolve(cmd.overwrite, cmd.skip, cmd.backup, None, &cfg);
 
     for source_str in &cmd.sources {
         let source = sources::parse_source(source_str)?;

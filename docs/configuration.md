@@ -5,7 +5,6 @@ copit uses a `copit.toml` file to track your project's target directory and all 
 ## File format
 
 ```toml
-[project]
 target = "vendor"
 
 [[sources]]
@@ -19,7 +18,7 @@ excludes = ["Cargo.toml", "src/lib.rs"]
 
 ## Fields
 
-### `[project]`
+### Root-level fields
 
 | Field | Description |
 |---|---|
@@ -45,4 +44,4 @@ Each entry in the `sources` array represents one copied source:
 | `skip` | Per-source override: skip existing files without prompting |
 | `backup` | Per-source override: save `.orig` backup for excluded modified files |
 
-Settings priority: CLI flags > per-source config > project config > default (`false`).
+Settings priority: CLI flags > per-source config > root-level config > default (`false`).

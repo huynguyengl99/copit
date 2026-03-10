@@ -134,16 +134,16 @@ Options:
 - `--ref <version>` — Override the version ref for this update (updates the source string and ref field)
 - `--backup` — Save `.orig` copy of new version for excluded modified files
 
-### `copit sync`
+### `copit update-all`
 
 Re-fetches **all** tracked sources in `copit.toml`.
 
 ```bash
 # Re-fetch all tracked sources
-copit sync
+copit update-all
 
 # Re-fetch all with backup for excluded modified files
-copit sync --backup
+copit update-all --backup
 ```
 
 Options:
@@ -179,12 +179,13 @@ source = "github:j178/prek@master/crates/prek-identify"
 ref = "master"
 commit = "abc123def456..."
 copied_at = "2026-03-07T08:46:51Z"
-exclude_modified = ["Cargo.toml", "src/lib.rs"]
+excludes = ["Cargo.toml", "src/lib.rs"]
 ```
 
 - `ref`: The user-specified version string (branch/tag/sha)
 - `commit`: Resolved commit SHA from GitHub API (optional, GitHub sources only)
-- `exclude_modified`: List of relative paths (within source folder) to skip on re-add. With `--backup`, the new version is saved as `<file>.orig`.
+- `excludes`: List of relative paths (within source folder) to skip on re-add. With `--backup`, the new version is saved as `<file>.orig`.
+- `frozen`: Pin this source so it's skipped during `update` and `update-all`.
 
 ## License
 

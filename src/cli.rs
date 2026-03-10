@@ -29,7 +29,7 @@ pub enum Command {
     /// Re-fetch specific tracked source(s) by path
     Update(UpdateCommand),
     /// Re-fetch all tracked sources
-    Sync(SyncCommand),
+    UpdateAll(UpdateAllCommand),
 }
 
 #[derive(Parser)]
@@ -98,6 +98,10 @@ pub struct AddCommand {
     /// Save .orig copy of new version for excluded modified files
     #[arg(long)]
     pub backup: bool,
+
+    /// Pin this source so update and update-all skip it
+    #[arg(long)]
+    pub freeze: bool,
 }
 
 #[derive(Parser)]
@@ -123,18 +127,34 @@ pub struct UpdateCommand {
     /// Save .orig copy of new version for excluded modified files
     #[arg(long)]
     pub backup: bool,
+
+    /// Overwrite existing files without prompting
+    #[arg(long)]
+    pub overwrite: bool,
+
+    /// Skip existing files without prompting
+    #[arg(long, conflicts_with = "overwrite")]
+    pub skip: bool,
+
+    /// Pin this source so update and update-all skip it
+    #[arg(long)]
+    pub freeze: bool,
+
+    /// Unpin this source so it can be updated again
+    #[arg(long, conflicts_with = "freeze")]
+    pub unfreeze: bool,
 }
 
 #[derive(Parser)]
 #[command(after_help = "\
 Examples:
   # Re-fetch all tracked sources
-  copit sync
+  copit update-all
 
   # Re-fetch all with backup for excluded modified files
-  copit sync --backup
+  copit update-all --backup
 ")]
-pub struct SyncCommand {
+pub struct UpdateAllCommand {
     /// Override the version ref (only valid with a single source)
     #[arg(long = "ref")]
     pub version_ref: Option<String>,
@@ -142,4 +162,12 @@ pub struct SyncCommand {
     /// Save .orig copy of new version for excluded modified files
     #[arg(long)]
     pub backup: bool,
+
+    /// Overwrite existing files without prompting
+    #[arg(long)]
+    pub overwrite: bool,
+
+    /// Skip existing files without prompting
+    #[arg(long, conflicts_with = "overwrite")]
+    pub skip: bool,
 }

@@ -10,7 +10,7 @@ use crate::cli::AddCommand;
 use crate::config;
 use crate::sources::{self, Source};
 
-use super::common::{self, portable_display};
+use super::common::{self, portable_display, should_write_existing};
 
 /// Run the `add` command, fetching and copying each specified source.
 pub async fn run(cmd: &AddCommand) -> Result<()> {
@@ -43,7 +43,7 @@ async fn add_source(source: &Source, base_target: &str, cmd: &AddCommand) -> Res
     let is_single = files.len() == 1;
     let strip_prefix = common::compute_strip_prefix(&suggested, !is_single);
 
-    // Compute the track path early so we can look up exclude_modified
+    // Compute the track path early so we can look up excludes
     let track_path = if is_single {
         let (relative_path, _) = &files[0];
         let filename = Path::new(relative_path)
@@ -61,12 +61,14 @@ async fn add_source(source: &Source, base_target: &str, cmd: &AddCommand) -> Res
 
     let track_key = portable_display(&track_path);
 
-    // Look up existing entry for exclude_modified
-    let existing_entry = config::get_source_entry(&track_key);
-    let exclude_modified: Vec<String> = existing_entry
-        .as_ref()
-        .map(|e| e.exclude_modified.clone())
-        .unwrap_or_default();
+    // Refuse to re-add an already tracked source
+    if config::get_source_entry(&track_key).is_some() {
+        println!(
+            "Already tracked: {} (use `copit update` to re-fetch)",
+            track_key
+        );
+        return Ok(());
+    }
 
     let mut any_written = false;
 
@@ -82,38 +84,8 @@ async fn add_source(source: &Source, base_target: &str, cmd: &AddCommand) -> Res
         // Validate no path traversal
         common::validate_no_path_traversal(&dest, base_target)?;
 
-        // Check if this file is in exclude_modified
-        if common::handle_exclude_modified(
-            &dest,
-            &track_path,
-            &exclude_modified,
-            contents,
-            cmd.backup,
-        )? {
+        if !should_write_existing(&dest, cmd.overwrite, cmd.skip)? {
             continue;
-        }
-
-        if dest.exists() {
-            if cmd.skip {
-                println!("Skipping (already exists): {}", portable_display(&dest));
-                continue;
-            }
-
-            if !cmd.overwrite {
-                let proceed = dialoguer::Confirm::new()
-                    .with_prompt(format!(
-                        "{} already exists. Overwrite?",
-                        portable_display(&dest)
-                    ))
-                    .default(false)
-                    .interact()
-                    .unwrap_or(false);
-
-                if !proceed {
-                    println!("Skipped: {}", portable_display(&dest));
-                    continue;
-                }
-            }
         }
 
         common::write_file(&dest, contents)?;
@@ -139,11 +111,14 @@ async fn add_source(source: &Source, base_target: &str, cmd: &AddCommand) -> Res
         _ => (None, None),
     };
 
+    let frozen = if cmd.freeze { Some(true) } else { None };
+
     config::add_source_entry(
         &track_key,
         &source.to_source_string(),
         version_ref.as_deref(),
         commit.as_deref(),
+        frozen,
     )?;
 
     Ok(())

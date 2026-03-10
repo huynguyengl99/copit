@@ -15,7 +15,7 @@ async fn main() -> anyhow::Result<()> {
         Command::Add(cmd) => commands::add::run(&cmd).await?,
         Command::Remove(cmd) => commands::remove::run(&cmd)?,
         Command::Update(cmd) => commands::update::run(&cmd).await?,
-        Command::Sync(cmd) => commands::sync::run(&cmd).await?,
+        Command::UpdateAll(cmd) => commands::update_all::run(&cmd).await?,
     }
 
     Ok(())

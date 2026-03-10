@@ -11,7 +11,7 @@ This document contains the help content for the `copit` command-line program.
 * [`copit add`↴](#copit-add)
 * [`copit remove`↴](#copit-remove)
 * [`copit update`↴](#copit-update)
-* [`copit sync`↴](#copit-sync)
+* [`copit update-all`↴](#copit-update-all)
 
 ## `copit`
 
@@ -25,7 +25,7 @@ Copy reusable source code into your project
 * `add` — Add source code from GitHub, HTTP URLs, or ZIP archives
 * `remove` — Remove previously copied source files
 * `update` — Re-fetch specific tracked source(s) by path
-* `sync` — Re-fetch all tracked sources
+* `update-all` — Re-fetch all tracked sources
 
 
 
@@ -75,6 +75,7 @@ Examples:
 * `--overwrite` — Overwrite existing files without prompting
 * `--skip` — Skip existing files without prompting
 * `--backup` — Save .orig copy of new version for excluded modified files
+* `--freeze` — Pin this source so update and update-all skip it
 
 
 
@@ -130,21 +131,23 @@ Examples:
 
 * `--ref <VERSION_REF>` — Override the version ref for this update
 * `--backup` — Save .orig copy of new version for excluded modified files
+* `--freeze` — Pin this source so update and update-all skip it
+* `--unfreeze` — Unpin this source so it can be updated again
 
 
 
-## `copit sync`
+## `copit update-all`
 
 Re-fetch all tracked sources
 
-**Usage:** `copit sync [OPTIONS]`
+**Usage:** `copit update-all [OPTIONS]`
 
 Examples:
   # Re-fetch all tracked sources
-  copit sync
+  copit update-all
 
   # Re-fetch all with backup for excluded modified files
-  copit sync --backup
+  copit update-all --backup
 
 
 ###### **Options:**

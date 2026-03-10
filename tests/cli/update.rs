@@ -55,7 +55,12 @@ fn help() {
         .args(["update", "--help"])
         .assert()
         .success()
-        .stdout(predicates::str::contains("--ref").and(predicates::str::contains("--backup")));
+        .stdout(
+            predicates::str::contains("--ref")
+                .and(predicates::str::contains("--backup"))
+                .and(predicates::str::contains("--overwrite"))
+                .and(predicates::str::contains("--skip")),
+        );
 }
 
 #[tokio::test]
@@ -88,7 +93,7 @@ copied_at = "2026-01-01T00:00:00Z"
     std::fs::write(dir.path().join("vendor/file.rs"), "old v1").unwrap();
 
     copit_cmd()
-        .args(["update", "vendor/file.rs"])
+        .args(["update", "vendor/file.rs", "--overwrite"])
         .current_dir(dir.path())
         .assert()
         .success()
@@ -129,7 +134,7 @@ target = "vendor"
 path = "vendor/mylib"
 source = "{}/archive.zip#mylib"
 copied_at = "2026-01-01T00:00:00Z"
-exclude_modified = ["Cargo.toml"]
+excludes = ["Cargo.toml"]
 "#,
             server.url()
         ),
@@ -140,7 +145,7 @@ exclude_modified = ["Cargo.toml"]
     std::fs::write(dir.path().join("vendor/mylib/Cargo.toml"), "modified cargo").unwrap();
 
     copit_cmd()
-        .args(["update", "vendor/mylib"])
+        .args(["update", "vendor/mylib", "--overwrite"])
         .current_dir(dir.path())
         .assert()
         .success()
@@ -184,7 +189,7 @@ target = "vendor"
 path = "vendor/mylib"
 source = "{}/archive.zip#mylib"
 copied_at = "2026-01-01T00:00:00Z"
-exclude_modified = ["Cargo.toml"]
+excludes = ["Cargo.toml"]
 "#,
             server.url()
         ),
@@ -199,7 +204,7 @@ exclude_modified = ["Cargo.toml"]
     std::fs::write(dir.path().join("vendor/mylib/src/lib.rs"), "old lib").unwrap();
 
     copit_cmd()
-        .args(["update", "vendor/mylib", "--backup"])
+        .args(["update", "vendor/mylib", "--backup", "--overwrite"])
         .current_dir(dir.path())
         .assert()
         .success()
@@ -286,6 +291,216 @@ copied_at = "2026-01-01T00:00:00Z"
         .current_dir(dir.path())
         .assert()
         .failure();
+
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn skip_existing() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/file.rs")
+        .with_status(200)
+        .with_body("new content")
+        .create_async()
+        .await;
+    let dir = TempDir::new().unwrap();
+    let source_url = format!("{}/file.rs", server.url());
+    std::fs::write(
+        dir.path().join("copit.toml"),
+        format!(
+            r#"[project]
+target = "vendor"
+
+[[sources]]
+path = "vendor/file.rs"
+source = "{source_url}"
+copied_at = "2026-01-01T00:00:00Z"
+            "#
+        ),
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.path().join("vendor")).unwrap();
+    std::fs::write(dir.path().join("vendor/file.rs"), b"old content").unwrap();
+
+    copit_cmd()
+        .args(["update", "vendor/file.rs", "--skip"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Skipping (already exists)"));
+
+    let content = std::fs::read_to_string(dir.path().join("vendor/file.rs")).unwrap();
+    assert_eq!(content, "old content");
+
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn overwrite_existing() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/file.rs")
+        .with_status(200)
+        .with_body("new content")
+        .create_async()
+        .await;
+
+    let dir = TempDir::new().unwrap();
+    let source_url = format!("{}/file.rs", server.url());
+    std::fs::write(
+        dir.path().join("copit.toml"),
+        format!(
+            r#"[project]
+target = "vendor"
+
+[[sources]]
+path = "vendor/file.rs"
+source = "{source_url}"
+copied_at = "2026-01-01T00:00:00Z"
+"#
+        ),
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.path().join("vendor")).unwrap();
+    std::fs::write(dir.path().join("vendor/file.rs"), "old content").unwrap();
+
+    copit_cmd()
+        .args(["update", "vendor/file.rs", "--overwrite"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Updated: vendor/file.rs"));
+
+    let content = std::fs::read_to_string(dir.path().join("vendor/file.rs")).unwrap();
+    assert_eq!(content, "new content");
+
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn skips_frozen_source() {
+    let mut server = mockito::Server::new_async().await;
+    let source_url = format!("{}/file.rs", server.url());
+
+    let mock = server
+        .mock("GET", "/file.rs")
+        .with_status(200)
+        .with_body("new content")
+        .expect(0)
+        .create_async()
+        .await;
+
+    let dir = TempDir::new().unwrap();
+    std::fs::write(
+        dir.path().join("copit.toml"),
+        format!(
+            r#"[project]
+target = "vendor"
+
+[[sources]]
+path = "vendor/file.rs"
+source = "{source_url}"
+frozen = true
+copied_at = "2026-01-01T00:00:00Z"
+"#
+        ),
+    )
+    .unwrap();
+
+    copit_cmd()
+        .args(["update", "vendor/file.rs"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Skipping frozen: vendor/file.rs"));
+
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn unfreeze_bypasses_frozen() {
+    let mut server = mockito::Server::new_async().await;
+    let source_url = format!("{}/file.rs", server.url());
+
+    let mock = server
+        .mock("GET", "/file.rs")
+        .with_status(200)
+        .with_body("new content")
+        .create_async()
+        .await;
+
+    let dir = TempDir::new().unwrap();
+    std::fs::write(
+        dir.path().join("copit.toml"),
+        format!(
+            r#"[project]
+target = "vendor"
+
+[[sources]]
+path = "vendor/file.rs"
+source = "{source_url}"
+frozen = true
+copied_at = "2026-01-01T00:00:00Z"
+"#
+        ),
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.path().join("vendor")).unwrap();
+    std::fs::write(dir.path().join("vendor/file.rs"), "old content").unwrap();
+
+    copit_cmd()
+        .args(["update", "vendor/file.rs", "--unfreeze", "--overwrite"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Updated: vendor/file.rs"));
+
+    let config = copit::config::load_config_from(&dir.path().join("copit.toml")).unwrap();
+    assert_eq!(config.sources[0].frozen, None);
+
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn freeze_flag_sets_frozen() {
+    let mut server = mockito::Server::new_async().await;
+    let source_url = format!("{}/file.rs", server.url());
+
+    let mock = server
+        .mock("GET", "/file.rs")
+        .with_status(200)
+        .with_body("new content")
+        .create_async()
+        .await;
+
+    let dir = TempDir::new().unwrap();
+    std::fs::write(
+        dir.path().join("copit.toml"),
+        format!(
+            r#"[project]
+target = "vendor"
+
+[[sources]]
+path = "vendor/file.rs"
+source = "{source_url}"
+copied_at = "2026-01-01T00:00:00Z"
+"#
+        ),
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.path().join("vendor")).unwrap();
+    std::fs::write(dir.path().join("vendor/file.rs"), "old content").unwrap();
+
+    copit_cmd()
+        .args(["update", "vendor/file.rs", "--freeze", "--overwrite"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Updated: vendor/file.rs"));
+
+    let config = copit::config::load_config_from(&dir.path().join("copit.toml")).unwrap();
+    assert_eq!(config.sources[0].frozen, Some(true));
 
     mock.assert_async().await;
 }

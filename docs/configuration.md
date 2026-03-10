@@ -14,7 +14,7 @@ source = "github:j178/prek@master/crates/prek-identify"
 ref = "master"
 commit = "abc123def456..."
 copied_at = "2026-03-07T08:46:51Z"
-exclude_modified = ["Cargo.toml", "src/lib.rs"]
+excludes = ["Cargo.toml", "src/lib.rs"]
 ```
 
 ## Fields
@@ -24,6 +24,9 @@ exclude_modified = ["Cargo.toml", "src/lib.rs"]
 | Field | Description |
 |---|---|
 | `target` | Default directory where source files are copied into |
+| `overwrite` | Default: overwrite existing files without prompting |
+| `skip` | Default: skip existing files without prompting |
+| `backup` | Default: save `.orig` backup for excluded modified files |
 
 ### `[[sources]]`
 
@@ -36,4 +39,5 @@ Each entry in the `sources` array represents one copied source:
 | `ref` | User-specified version string (branch, tag, or SHA) |
 | `commit` | Resolved commit SHA from GitHub API (GitHub sources only) |
 | `copied_at` | Timestamp of when the source was last copied |
-| `exclude_modified` | List of relative paths within the source to skip on re-add. With `--backup`, the new version is saved as `<file>.orig` |
+| `excludes` | List of relative paths within the source to skip on re-add. With `--backup`, the new version is saved as `<file>.orig` |
+| `frozen` | Pin this source so it's skipped during updates |

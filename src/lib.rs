@@ -14,7 +14,7 @@
 //! - **Copy** files or folders from GitHub repositories, HTTP URLs, or ZIP archives
 //! - **Track** what you copied and where it came from in a `copit.toml` manifest
 //! - **Update** previously copied sources to newer versions
-//! - **Sync** all tracked sources at once
+//! - **Update All** tracked sources at once
 //!
 //! ## Quick start
 //!
@@ -35,7 +35,7 @@
 //! copit update vendor/lib.rs --ref v2.0
 //!
 //! # Re-fetch all tracked sources
-//! copit sync
+//! copit update-all
 //! ```
 //!
 //! ## Source formats
@@ -50,7 +50,7 @@
 //!
 //! - [`sources`] — Source parsing, fetching (GitHub, HTTP, ZIP)
 //! - [`config`] — `copit.toml` loading, saving, and manipulation
-//! - [`commands`] — CLI command implementations (init, add, remove, update, sync)
+//! - [`commands`] — CLI command implementations (init, add, remove, update, update-all)
 //! - [`cli`] — Clap argument definitions
 
 pub mod cli;

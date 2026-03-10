@@ -1,8 +1,8 @@
 mod add;
 mod init;
 mod remove;
-mod sync;
 mod update;
+mod update_all;
 
 use assert_cmd::Command;
 use std::io::Write;
@@ -42,6 +42,6 @@ fn help_shows_all_commands() {
             .and(predicates::str::contains("add"))
             .and(predicates::str::contains("remove"))
             .and(predicates::str::contains("update"))
-            .and(predicates::str::contains("sync")),
+            .and(predicates::str::contains("update-all")),
     );
 }

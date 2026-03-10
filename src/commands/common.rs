@@ -1,7 +1,7 @@
 //! Shared utilities for command implementations.
 //!
-//! Provides path computation, path traversal validation, `exclude_modified`
-//! handling, and file writing helpers used by the `add`, `update`, and `sync`
+//! Provides path computation, path traversal validation, `excludes`
+//! handling, and file writing helpers used by the `add`, `update`, and `update-all`
 //! commands.
 
 use anyhow::{bail, Context, Result};
@@ -103,22 +103,48 @@ pub fn validate_no_path_traversal(dest: &Path, base_target: &str) -> Result<()> 
     Ok(())
 }
 
-/// Handle exclude_modified logic: skip the file and optionally write a .orig backup.
-/// Returns `true` if the file was skipped (excluded), `false` if it should be written normally.
-pub fn handle_exclude_modified(
+/// Build a [`globset::GlobSet`] from the given exclude patterns.
+///
+/// Each pattern is compiled with `literal_separator(true)` so that `*` matches
+/// anything except `/` (use `**` for recursive matching across directories).
+fn build_glob_set(excludes: &[String]) -> Result<globset::GlobSet> {
+    let mut builder = globset::GlobSetBuilder::new();
+    for pattern in excludes {
+        let glob = globset::GlobBuilder::new(pattern)
+            .literal_separator(true)
+            .build()
+            .with_context(|| format!("Invalid glob pattern: {pattern}"))?;
+        builder.add(glob);
+    }
+    builder
+        .build()
+        .context("Failed to build glob set for excludes")
+}
+
+/// Handle excludes logic: skip the file and optionally write a `.orig` backup.
+///
+/// Returns `true` if the file was skipped (excluded), `false` if it should be
+/// written normally. Supports glob patterns (e.g. `*.toml`, `src/**`) via
+/// [`globset`].
+pub fn handle_excludes(
     dest: &Path,
     track_path: &Path,
-    exclude_modified: &[String],
+    excludes: &[String],
     contents: &[u8],
     backup: bool,
 ) -> Result<bool> {
+    if excludes.is_empty() {
+        return Ok(false);
+    }
+
     let rel_within_source = dest
         .strip_prefix(track_path)
         .ok()
         .map(|p| p.to_string_lossy().to_string());
 
     if let Some(ref rel_path) = rel_within_source {
-        if exclude_modified.iter().any(|e| e == rel_path) {
+        let glob_set = build_glob_set(excludes)?;
+        if glob_set.is_match(rel_path) {
             if backup {
                 let orig_path = PathBuf::from(format!("{}.orig", portable_display(dest)));
                 if let Some(parent) = orig_path.parent() {
@@ -140,6 +166,28 @@ pub fn handle_exclude_modified(
     }
 
     Ok(false)
+}
+
+/// Determine whether an existing file should be overwritten.
+///
+/// Returns `true` if the file should be written, `false` if it should be skipped.
+/// When neither `overwrite` nor `skip` is set, prompts the user interactively.
+pub fn should_write_existing(dest: &Path, overwrite: bool, skip: bool) -> Result<bool> {
+    if !dest.exists() || overwrite {
+        return Ok(true);
+    }
+    if skip {
+        println!("Skipping (already exists): {}", portable_display(dest));
+        return Ok(false);
+    }
+    Ok(dialoguer::Confirm::new()
+        .with_prompt(format!(
+            "{} already exists. Overwrite?",
+            portable_display(dest)
+        ))
+        .default(false)
+        .interact()
+        .unwrap_or(false))
 }
 
 /// Write file contents to dest, creating parent directories as needed.

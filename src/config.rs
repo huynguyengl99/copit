@@ -17,7 +17,7 @@
 //! ref = "v1.0"
 //! commit = "abc123..."
 //! copied_at = "2026-03-07T08:46:51Z"
-//! exclude_modified = ["Cargo.toml"]
+//! excludes = ["Cargo.toml"]
 //! ```
 
 use anyhow::{Context, Result};
@@ -50,7 +50,9 @@ pub struct SourceEntry {
     pub copied_at: String,
     /// Relative paths within the source to skip on update (user-modified files).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub exclude_modified: Vec<String>,
+    pub excludes: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frozen: Option<bool>,
 }
 
 /// Top-level `copit.toml` configuration.
@@ -143,13 +145,16 @@ pub fn save_config_to(config: &CopitConfig, path: &Path) -> Result<()> {
             if let Some(ref commit) = entry.commit {
                 table["commit"] = toml_edit::value(commit);
             }
+            if let Some(frozen) = entry.frozen {
+                table["frozen"] = toml_edit::value(frozen);
+            }
             table["copied_at"] = toml_edit::value(&entry.copied_at);
-            if !entry.exclude_modified.is_empty() {
+            if !entry.excludes.is_empty() {
                 let mut arr = toml_edit::Array::new();
-                for item in &entry.exclude_modified {
+                for item in &entry.excludes {
                     arr.push(item.as_str());
                 }
-                table["exclude_modified"] = toml_edit::value(arr);
+                table["excludes"] = toml_edit::value(arr);
             }
             sources.push(table);
         }
@@ -163,14 +168,15 @@ pub fn save_config_to(config: &CopitConfig, path: &Path) -> Result<()> {
 /// Add or update a source entry in `copit.toml` in the current directory.
 ///
 /// If an entry with the same `path` already exists, it is updated in place
-/// (preserving `exclude_modified`). Otherwise a new entry is appended.
+/// (preserving `excludes`). Otherwise a new entry is appended.
 pub fn add_source_entry(
     path: &str,
     source: &str,
     version_ref: Option<&str>,
     commit: Option<&str>,
+    frozen: Option<bool>,
 ) -> Result<()> {
-    add_source_entry_to(&config_path(), path, source, version_ref, commit)
+    add_source_entry_to(&config_path(), path, source, version_ref, commit, frozen)
 }
 
 pub fn add_source_entry_to(
@@ -179,6 +185,7 @@ pub fn add_source_entry_to(
     source: &str,
     version_ref: Option<&str>,
     commit: Option<&str>,
+    frozen: Option<bool>,
 ) -> Result<()> {
     let content = std::fs::read_to_string(config_file).context("Failed to read copit.toml")?;
     let mut doc = content
@@ -201,6 +208,15 @@ pub fn add_source_entry_to(
     for table in sources.iter_mut() {
         if table.get("path").and_then(|v| v.as_str()) == Some(path) {
             table["source"] = toml_edit::value(source);
+
+            if let Some(f) = frozen {
+                if f {
+                    table["frozen"] = toml_edit::value(true);
+                } else {
+                    table.remove("frozen");
+                }
+            }
+
             if let Some(r) = version_ref {
                 table["ref"] = toml_edit::value(r);
             } else {
@@ -212,7 +228,7 @@ pub fn add_source_entry_to(
                 table.remove("commit");
             }
             table["copied_at"] = toml_edit::value(&now);
-            // Preserve existing exclude_modified — don't touch it on update
+            // Preserve existing excludes — don't touch it on update
             found = true;
             break;
         }
@@ -227,6 +243,9 @@ pub fn add_source_entry_to(
         }
         if let Some(c) = commit {
             table["commit"] = toml_edit::value(c);
+        }
+        if frozen == Some(true) {
+            table["frozen"] = toml_edit::value(true);
         }
         table["copied_at"] = toml_edit::value(&now);
         sources.push(table);
@@ -317,6 +336,7 @@ mod tests {
             "github:serde-rs/serde@v1.0.219/serde/src/lib.rs",
             Some("v1.0.219"),
             Some("abc123"),
+            None,
         )
         .unwrap();
 
@@ -340,6 +360,7 @@ mod tests {
             "github:a/b@v1/path",
             Some("v1"),
             Some("sha1"),
+            None,
         )
         .unwrap();
         add_source_entry_to(
@@ -348,6 +369,7 @@ mod tests {
             "github:a/b@v2/path",
             Some("v2"),
             Some("sha2"),
+            None,
         )
         .unwrap();
 
@@ -370,6 +392,7 @@ mod tests {
             "https://example.com/file.txt",
             None,
             None,
+            None,
         )
         .unwrap();
 
@@ -384,8 +407,24 @@ mod tests {
         let config_file = config_path_in(dir.path());
 
         save_config_to(&CopitConfig::default(), &config_file).unwrap();
-        add_source_entry_to(&config_file, "vendor/a.rs", "github:a/b@v1/a", None, None).unwrap();
-        add_source_entry_to(&config_file, "vendor/b.rs", "github:a/b@v1/b", None, None).unwrap();
+        add_source_entry_to(
+            &config_file,
+            "vendor/a.rs",
+            "github:a/b@v1/a",
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        add_source_entry_to(
+            &config_file,
+            "vendor/b.rs",
+            "github:a/b@v1/b",
+            None,
+            None,
+            None,
+        )
+        .unwrap();
 
         let removed =
             remove_source_entries_from(&config_file, &["vendor/a.rs".to_string()]).unwrap();
@@ -402,8 +441,24 @@ mod tests {
         let config_file = config_path_in(dir.path());
 
         save_config_to(&CopitConfig::default(), &config_file).unwrap();
-        add_source_entry_to(&config_file, "vendor/a.rs", "github:a/b@v1/a", None, None).unwrap();
-        add_source_entry_to(&config_file, "vendor/b.rs", "github:a/b@v1/b", None, None).unwrap();
+        add_source_entry_to(
+            &config_file,
+            "vendor/a.rs",
+            "github:a/b@v1/a",
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        add_source_entry_to(
+            &config_file,
+            "vendor/b.rs",
+            "github:a/b@v1/b",
+            None,
+            None,
+            None,
+        )
+        .unwrap();
 
         let removed = remove_source_entries_from(
             &config_file,
@@ -439,6 +494,7 @@ mod tests {
             "github:a/b@v1/lib.rs",
             Some("v1"),
             Some("sha1"),
+            None,
         )
         .unwrap();
 
@@ -451,7 +507,7 @@ mod tests {
     }
 
     #[test]
-    fn roundtrip_with_exclude_modified() {
+    fn roundtrip_with_excludes() {
         let dir = TempDir::new().unwrap();
         let config_file = config_path_in(dir.path());
 
@@ -465,20 +521,18 @@ mod tests {
                 version_ref: Some("master".to_string()),
                 commit: Some("abc123def456".to_string()),
                 copied_at: "2026-03-07T08:46:51Z".to_string(),
-                exclude_modified: vec!["Cargo.toml".to_string(), "src/lib.rs".to_string()],
+                excludes: vec!["Cargo.toml".to_string(), "src/lib.rs".to_string()],
+                frozen: None,
             }],
         };
         save_config_to(&config, &config_file).unwrap();
 
         let loaded = load_config_from(&config_file).unwrap();
-        assert_eq!(
-            loaded.sources[0].exclude_modified,
-            vec!["Cargo.toml", "src/lib.rs"]
-        );
+        assert_eq!(loaded.sources[0].excludes, vec!["Cargo.toml", "src/lib.rs"]);
     }
 
     #[test]
-    fn exclude_modified_parsing() {
+    fn excludes_parsing() {
         let dir = TempDir::new().unwrap();
         let config_file = config_path_in(dir.path());
 
@@ -494,16 +548,13 @@ source = "github:owner/repo@main/src/mylib"
 ref = "main"
 commit = "deadbeef"
 copied_at = "2026-03-07T00:00:00Z"
-exclude_modified = ["README.md", "config.yaml"]
+excludes = ["README.md", "config.yaml"]
 "#,
         )
         .unwrap();
 
         let loaded = load_config_from(&config_file).unwrap();
-        assert_eq!(
-            loaded.sources[0].exclude_modified,
-            vec!["README.md", "config.yaml"]
-        );
+        assert_eq!(loaded.sources[0].excludes, vec!["README.md", "config.yaml"]);
     }
 
     #[test]
@@ -528,7 +579,7 @@ copied_at = "2026-03-07T00:00:00Z"
         let loaded = load_config_from(&config_file).unwrap();
         assert_eq!(loaded.sources[0].version_ref, None);
         assert_eq!(loaded.sources[0].commit, None);
-        assert!(loaded.sources[0].exclude_modified.is_empty());
+        assert!(loaded.sources[0].excludes.is_empty());
     }
 
     #[test]
@@ -557,12 +608,14 @@ copied_at = "2026-03-07T00:00:00Z"
             "github:a/b@v1/a.rs",
             Some("v1"),
             Some("sha1"),
+            None,
         )
         .unwrap();
         add_source_entry_to(
             &config_file,
             "vendor/b.rs",
             "https://example.com/b.rs",
+            None,
             None,
             None,
         )
@@ -575,6 +628,7 @@ copied_at = "2026-03-07T00:00:00Z"
             "github:a/b@v2/a.rs",
             Some("v2"),
             Some("sha2"),
+            None,
         )
         .unwrap();
 
@@ -602,6 +656,7 @@ copied_at = "2026-03-07T00:00:00Z"
             "github:x/y@main/util.rs",
             Some("main"),
             None,
+            None,
         )
         .unwrap();
 
@@ -611,7 +666,7 @@ copied_at = "2026-03-07T00:00:00Z"
     }
 
     #[test]
-    fn update_preserves_exclude_modified() {
+    fn update_preserves_excludes() {
         let dir = TempDir::new().unwrap();
         let config_file = config_path_in(dir.path());
 
@@ -625,7 +680,8 @@ copied_at = "2026-03-07T00:00:00Z"
                 version_ref: Some("v1".to_string()),
                 commit: Some("sha1".to_string()),
                 copied_at: "2026-01-01T00:00:00Z".to_string(),
-                exclude_modified: vec!["Cargo.toml".to_string()],
+                excludes: vec!["Cargo.toml".to_string()],
+                frozen: None,
             }],
         };
         save_config_to(&config, &config_file).unwrap();
@@ -636,11 +692,130 @@ copied_at = "2026-03-07T00:00:00Z"
             "github:owner/repo@v2/src/mylib",
             Some("v2"),
             Some("sha2"),
+            None,
         )
         .unwrap();
 
         let loaded = load_config_from(&config_file).unwrap();
-        assert_eq!(loaded.sources[0].exclude_modified, vec!["Cargo.toml"]);
+        assert_eq!(loaded.sources[0].excludes, vec!["Cargo.toml"]);
+        assert_eq!(loaded.sources[0].version_ref, Some("v2".to_string()));
+    }
+
+    #[test]
+    fn frozen_roundtrip() {
+        let dir = TempDir::new().unwrap();
+        let config_file = config_path_in(dir.path());
+
+        let config = CopitConfig {
+            project: ProjectConfig {
+                target: "vendor".to_string(),
+            },
+            sources: vec![SourceEntry {
+                path: "vendor/lib.rs".to_string(),
+                source: "github:a/b@v1/lib.rs".to_string(),
+                version_ref: Some("v1".to_string()),
+                commit: Some("sha1".to_string()),
+                copied_at: "2026-01-01T00:00:00Z".to_string(),
+                excludes: vec![],
+                frozen: Some(true),
+            }],
+        };
+        save_config_to(&config, &config_file).unwrap();
+
+        let loaded = load_config_from(&config_file).unwrap();
+        assert_eq!(loaded.sources[0].frozen, Some(true));
+    }
+
+    #[test]
+    fn frozen_not_serialized_when_none() {
+        let dir = TempDir::new().unwrap();
+        let config_file = config_path_in(dir.path());
+
+        save_config_to(&CopitConfig::default(), &config_file).unwrap();
+        add_source_entry_to(
+            &config_file,
+            "vendor/lib.rs",
+            "https://example.com/lib.rs",
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+
+        let raw = std::fs::read_to_string(&config_file).unwrap();
+        assert!(!raw.contains("frozen"));
+    }
+
+    #[test]
+    fn freeze_then_unfreeze() {
+        let dir = TempDir::new().unwrap();
+        let config_file = config_path_in(dir.path());
+
+        save_config_to(&CopitConfig::default(), &config_file).unwrap();
+
+        // Freeze
+        add_source_entry_to(
+            &config_file,
+            "vendor/lib.rs",
+            "github:a/b@v1/lib.rs",
+            Some("v1"),
+            Some("sha1"),
+            Some(true),
+        )
+        .unwrap();
+
+        let loaded = load_config_from(&config_file).unwrap();
+        assert_eq!(loaded.sources[0].frozen, Some(true));
+
+        // Unfreeze
+        add_source_entry_to(
+            &config_file,
+            "vendor/lib.rs",
+            "github:a/b@v2/lib.rs",
+            Some("v2"),
+            Some("sha2"),
+            Some(false),
+        )
+        .unwrap();
+
+        let loaded = load_config_from(&config_file).unwrap();
+        assert_eq!(loaded.sources[0].frozen, None);
+
+        let raw = std::fs::read_to_string(&config_file).unwrap();
+        assert!(!raw.contains("frozen"));
+    }
+
+    #[test]
+    fn update_with_none_preserves_frozen() {
+        let dir = TempDir::new().unwrap();
+        let config_file = config_path_in(dir.path());
+
+        save_config_to(&CopitConfig::default(), &config_file).unwrap();
+
+        // Add with frozen
+        add_source_entry_to(
+            &config_file,
+            "vendor/lib.rs",
+            "github:a/b@v1/lib.rs",
+            Some("v1"),
+            Some("sha1"),
+            Some(true),
+        )
+        .unwrap();
+
+        // Update with frozen=None — should preserve existing frozen
+        add_source_entry_to(
+            &config_file,
+            "vendor/lib.rs",
+            "github:a/b@v2/lib.rs",
+            Some("v2"),
+            Some("sha2"),
+            None,
+        )
+        .unwrap();
+
+        let loaded = load_config_from(&config_file).unwrap();
+        assert_eq!(loaded.sources[0].frozen, Some(true));
         assert_eq!(loaded.sources[0].version_ref, Some("v2".to_string()));
     }
 }

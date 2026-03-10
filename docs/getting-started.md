@@ -71,14 +71,14 @@ copit add https://raw.githubusercontent.com/serde-rs/serde/refs/heads/master/LIC
 copit add https://example.com/archive.zip#src/utils.rs
 ```
 
-### 3. Update and sync
+### 3. Update and update-all
 
 ```bash
 # Re-fetch a specific tracked source
 copit update vendor/mylib
 
 # Re-fetch all tracked sources
-copit sync
+copit update-all
 ```
 
 ### 4. Remove sources

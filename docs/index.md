@@ -18,7 +18,7 @@ No hidden abstractions, no dependency lock-in. Override anything, keep what you 
 - **HTTP URLs** — Fetch files from any raw URL
 - **ZIP archives** — Extract files from ZIP archives with inner path selection
 - **Tracking** — `copit.toml` tracks all copied sources for easy updates
-- **Update & sync** — Re-fetch individual sources or sync all at once
+- **Update & update-all** — Re-fetch individual sources or update all at once
 - **Exclude modified** — Skip files you've customized during updates, with optional `.orig` backups
 
 ## Quick example
@@ -36,8 +36,8 @@ copit add https://raw.githubusercontent.com/serde-rs/serde/refs/heads/master/LIC
 # Update a tracked source
 copit update vendor/serde
 
-# Sync all tracked sources
-copit sync
+# Update all tracked sources
+copit update-all
 ```
 
 ## Installation

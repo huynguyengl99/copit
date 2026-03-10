@@ -286,16 +286,17 @@ async fn zip_source() {
 }
 
 // ---------------------------------------------------------------------------
-// exclude_modified
+// already tracked
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
-async fn exclude_modified_skips() {
+async fn already_tracked_skips() {
     let mut server = mockito::Server::new_async().await;
-    let mock = server
+    let _mock = server
         .mock("GET", "/file.rs")
         .with_status(200)
-        .with_body("updated content")
+        .with_body("new content")
+        .expect(0)
         .create_async()
         .await;
 
@@ -309,75 +310,84 @@ target = "vendor"
 path = "vendor/file.rs"
 source = "https://old-server/file.rs"
 copied_at = "2026-01-01T00:00:00Z"
-exclude_modified = [""]
 "#,
     )
     .unwrap();
     std::fs::create_dir_all(dir.path().join("vendor")).unwrap();
-    std::fs::write(dir.path().join("vendor/file.rs"), "modified locally").unwrap();
+    std::fs::write(dir.path().join("vendor/file.rs"), "original").unwrap();
 
     copit_cmd()
-        .args(["add", &format!("{}/file.rs", server.url()), "--overwrite"])
+        .args(["add", &format!("{}/file.rs", server.url())])
         .current_dir(dir.path())
         .assert()
         .success()
-        .stdout(predicates::str::contains("Skipped (modified)"));
+        .stdout(predicates::str::contains("Already tracked"));
 
+    // File unchanged
     let content = std::fs::read_to_string(dir.path().join("vendor/file.rs")).unwrap();
-    assert_eq!(content, "modified locally");
+    assert_eq!(content, "original");
+
+    // Config unchanged — still 1 source
+    let config = copit::config::load_config_from(&dir.path().join("copit.toml")).unwrap();
+    assert_eq!(config.sources.len(), 1);
+    assert_eq!(config.sources[0].source, "https://old-server/file.rs");
+}
+
+#[tokio::test]
+async fn add_with_freeze_flag() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/lib.rs")
+        .with_status(200)
+        .with_body("fn lib() {}")
+        .create_async()
+        .await;
+
+    let dir = TempDir::new().unwrap();
+    std::fs::write(
+        dir.path().join("copit.toml"),
+        "[project]\ntarget = \"vendor\"\n",
+    )
+    .unwrap();
+
+    copit_cmd()
+        .args(["add", &format!("{}/lib.rs", server.url()), "--freeze"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Copied: vendor/lib.rs"));
+
+    let config = copit::config::load_config_from(&dir.path().join("copit.toml")).unwrap();
+    assert_eq!(config.sources[0].frozen, Some(true));
 
     mock.assert_async().await;
 }
 
 #[tokio::test]
-async fn exclude_modified_backup() {
+async fn add_without_freeze_flag() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
-        .mock("GET", "/file.rs")
+        .mock("GET", "/lib.rs")
         .with_status(200)
-        .with_body("updated content")
+        .with_body("fn lib() {}")
         .create_async()
         .await;
 
     let dir = TempDir::new().unwrap();
     std::fs::write(
         dir.path().join("copit.toml"),
-        r#"[project]
-target = "vendor"
-
-[[sources]]
-path = "vendor/file.rs"
-source = "https://old-server/file.rs"
-copied_at = "2026-01-01T00:00:00Z"
-exclude_modified = [""]
-"#,
+        "[project]\ntarget = \"vendor\"\n",
     )
     .unwrap();
-    std::fs::create_dir_all(dir.path().join("vendor")).unwrap();
-    std::fs::write(dir.path().join("vendor/file.rs"), "modified locally").unwrap();
 
     copit_cmd()
-        .args([
-            "add",
-            &format!("{}/file.rs", server.url()),
-            "--overwrite",
-            "--backup",
-        ])
+        .args(["add", &format!("{}/lib.rs", server.url())])
         .current_dir(dir.path())
         .assert()
-        .success()
-        .stdout(
-            predicates::str::contains("Skipped (modified)")
-                .and(predicates::str::contains("backup")),
-        );
+        .success();
 
-    let content = std::fs::read_to_string(dir.path().join("vendor/file.rs")).unwrap();
-    assert_eq!(content, "modified locally");
-
-    let orig = dir.path().join("vendor/file.rs.orig");
-    assert!(orig.exists(), ".orig backup should exist");
-    let backup_content = std::fs::read_to_string(&orig).unwrap();
-    assert_eq!(backup_content, "updated content");
+    let config = copit::config::load_config_from(&dir.path().join("copit.toml")).unwrap();
+    assert_eq!(config.sources[0].frozen, None);
 
     mock.assert_async().await;
 }

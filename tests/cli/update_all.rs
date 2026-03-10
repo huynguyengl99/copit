@@ -8,7 +8,7 @@ fn no_config() {
     let dir = TempDir::new().unwrap();
 
     copit_cmd()
-        .arg("sync")
+        .arg("update-all")
         .current_dir(dir.path())
         .assert()
         .failure()
@@ -25,7 +25,7 @@ fn no_sources() {
     .unwrap();
 
     copit_cmd()
-        .arg("sync")
+        .arg("update-all")
         .current_dir(dir.path())
         .assert()
         .success()
@@ -56,7 +56,7 @@ copied_at = "2026-01-01T00:00:00Z"
     .unwrap();
 
     copit_cmd()
-        .args(["sync", "--ref", "v2"])
+        .args(["update-all", "--ref", "v2"])
         .current_dir(dir.path())
         .assert()
         .failure()
@@ -81,7 +81,7 @@ copied_at = "2026-01-01T00:00:00Z"
     .unwrap();
 
     let output = copit_cmd()
-        .args(["sync", "--ref", "v2"])
+        .args(["update-all", "--ref", "v2"])
         .current_dir(dir.path())
         .output()
         .unwrap();
@@ -96,10 +96,15 @@ copied_at = "2026-01-01T00:00:00Z"
 #[test]
 fn help() {
     copit_cmd()
-        .args(["sync", "--help"])
+        .args(["update-all", "--help"])
         .assert()
         .success()
-        .stdout(predicates::str::contains("--ref").and(predicates::str::contains("--backup")));
+        .stdout(
+            predicates::str::contains("--ref")
+                .and(predicates::str::contains("--backup"))
+                .and(predicates::str::contains("--skip"))
+                .and(predicates::str::contains("--overwrite")),
+        );
 }
 
 #[tokio::test]
@@ -108,7 +113,7 @@ async fn single_http_source() {
     let mock = server
         .mock("GET", "/lib.rs")
         .with_status(200)
-        .with_body("synced content")
+        .with_body("updated all content")
         .create_async()
         .await;
 
@@ -132,17 +137,17 @@ copied_at = "2026-01-01T00:00:00Z"
     std::fs::write(dir.path().join("vendor/lib.rs"), "old").unwrap();
 
     copit_cmd()
-        .arg("sync")
+        .args(["update-all", "--overwrite"])
         .current_dir(dir.path())
         .assert()
         .success()
         .stdout(
-            predicates::str::contains("Syncing vendor/lib.rs")
+            predicates::str::contains("Updating all vendor/lib.rs")
                 .and(predicates::str::contains("Updated: vendor/lib.rs")),
         );
 
     let content = std::fs::read_to_string(dir.path().join("vendor/lib.rs")).unwrap();
-    assert_eq!(content, "synced content");
+    assert_eq!(content, "updated all content");
 
     mock.assert_async().await;
 }
@@ -187,13 +192,13 @@ copied_at = "2026-01-01T00:00:00Z"
     std::fs::create_dir_all(dir.path().join("vendor")).unwrap();
 
     copit_cmd()
-        .arg("sync")
+        .arg("update-all")
         .current_dir(dir.path())
         .assert()
         .success()
         .stdout(
-            predicates::str::contains("Syncing vendor/a.rs")
-                .and(predicates::str::contains("Syncing vendor/b.rs")),
+            predicates::str::contains("Updating all vendor/a.rs")
+                .and(predicates::str::contains("Updating all vendor/b.rs")),
         );
 
     assert_eq!(
@@ -207,4 +212,89 @@ copied_at = "2026-01-01T00:00:00Z"
 
     mock_a.assert_async().await;
     mock_b.assert_async().await;
+}
+
+#[tokio::test]
+async fn skip_existing() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/lib.rs")
+        .with_status(200)
+        .with_body("new content")
+        .create_async()
+        .await;
+
+    let dir = TempDir::new().unwrap();
+    let source_url = format!("{}/lib.rs", server.url());
+    std::fs::write(
+        dir.path().join("copit.toml"),
+        format!(
+            r#"[project]
+target = "vendor"
+
+[[sources]]
+path = "vendor/lib.rs"
+source = "{source_url}"
+copied_at = "2026-01-01T00:00:00Z"
+"#
+        ),
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.path().join("vendor")).unwrap();
+    std::fs::write(dir.path().join("vendor/lib.rs"), "old content").unwrap();
+
+    copit_cmd()
+        .args(["update-all", "--skip"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Skipping (already exists)"));
+
+    let content = std::fs::read_to_string(dir.path().join("vendor/lib.rs")).unwrap();
+    assert_eq!(content, "old content");
+
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn skips_frozen_sources() {
+    let mut server = mockito::Server::new_async().await;
+    let source_url = format!("{}/utils.rs", server.url());
+
+    // This mock should NOT be called — frozen source should be skipped
+    let mock = server
+        .mock("GET", "/utils.rs")
+        .with_status(200)
+        .with_body("new content")
+        .expect(0)
+        .create_async()
+        .await;
+
+    let dir = TempDir::new().unwrap();
+    std::fs::write(
+        dir.path().join("copit.toml"),
+        format!(
+            r#"[project]
+target = "vendor"
+
+[[sources]]
+path = "vendor/utils.rs"
+source = "{source_url}"
+frozen = true
+copied_at = "2026-01-01T00:00:00Z"
+"#
+        ),
+    )
+    .unwrap();
+
+    copit_cmd()
+        .arg("update-all")
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains(
+            "Skipping frozen: vendor/utils.rs",
+        ));
+
+    mock.assert_async().await;
 }

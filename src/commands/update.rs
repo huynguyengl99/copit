@@ -1,13 +1,13 @@
 //! The `copit update` command.
 //!
 //! Re-fetches specific tracked sources by path, optionally changing the
-//! version ref. Always overwrites non-excluded files (no skip/overwrite
-//! prompts unlike `add`).
+//! version ref.
 
 use anyhow::{bail, Context, Result};
 use std::path::PathBuf;
 
 use crate::cli::UpdateCommand;
+use crate::commands::common::should_write_existing;
 use crate::config::{self, SourceEntry};
 use crate::sources::{self, Source};
 
@@ -29,7 +29,28 @@ pub async fn run(cmd: &UpdateCommand) -> Result<()> {
             .find(|e| e.path == *path)
             .ok_or_else(|| anyhow::anyhow!("Source not found in copit.toml: {path}"))?;
 
-        update_source(entry, cmd.version_ref.as_deref(), cmd.backup).await?;
+        let frozen = if cmd.freeze {
+            Some(true)
+        } else if cmd.unfreeze {
+            Some(false)
+        } else {
+            None
+        };
+
+        if entry.frozen == Some(true) && !cmd.unfreeze {
+            println!("Skipping frozen: {}", entry.path);
+            continue;
+        }
+
+        update_source(
+            entry,
+            cmd.version_ref.as_deref(),
+            cmd.backup,
+            cmd.overwrite,
+            cmd.skip,
+            frozen,
+        )
+        .await?;
     }
 
     Ok(())
@@ -37,11 +58,17 @@ pub async fn run(cmd: &UpdateCommand) -> Result<()> {
 
 /// Re-fetch a single tracked source, optionally overriding the version ref.
 ///
-/// Also used by [`super::sync`] to update each source during a full sync.
+/// `frozen` controls the frozen flag in `copit.toml`: `Some(true)` sets it,
+/// `Some(false)` removes it, and `None` leaves it unchanged.
+///
+/// Also used by [`super::update_all`] to update each source during a full all updates.
 pub async fn update_source(
     entry: &SourceEntry,
     ref_override: Option<&str>,
     backup: bool,
+    overwrite: bool,
+    skip: bool,
+    frozen: Option<bool>,
 ) -> Result<()> {
     let source = sources::parse_source(&entry.source)?;
 
@@ -81,18 +108,15 @@ pub async fn update_source(
             )
         };
 
-        // Check if this file is in exclude_modified
-        if common::handle_exclude_modified(
-            &dest,
-            &track_path,
-            &entry.exclude_modified,
-            contents,
-            backup,
-        )? {
+        // Check if this file is in excludes
+        if common::handle_excludes(&dest, &track_path, &entry.excludes, contents, backup)? {
             continue;
         }
 
-        // Always overwrite for update (no --skip/--overwrite prompts)
+        if !should_write_existing(&dest, overwrite, skip)? {
+            continue;
+        }
+
         common::write_file(&dest, contents)?;
         println!("Updated: {}", common::portable_display(&dest));
     }
@@ -116,6 +140,7 @@ pub async fn update_source(
         &source.to_source_string(),
         version_ref.as_deref(),
         commit.as_deref(),
+        frozen,
     )?;
 
     Ok(())

@@ -162,7 +162,7 @@ copit/
 │   │   ├── add.rs               # copit add
 │   │   ├── remove.rs            # copit remove
 │   │   ├── update.rs            # copit update
-│   │   └── sync.rs              # copit sync
+│   │   └── update_all.rs        # copit update-all
 │   └── sources/
 │       ├── mod.rs               # Source enum + parsing
 │       ├── github.rs            # GitHub ZIP archive fetching
@@ -175,7 +175,7 @@ copit/
         ├── add.rs               # copit add tests
         ├── remove.rs            # copit remove tests
         ├── update.rs            # copit update tests
-        └── sync.rs              # copit sync tests
+        └── update_all.rs        # copit update-all tests
 ```
 
 ## Releasing

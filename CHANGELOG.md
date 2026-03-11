@@ -2,11 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2026-03-11
+
+### CI
+
+- Add code coverage with Codecov and CI/coverage badges ([a2bea95](https://github.com/huynguyengl99/copit/commit/a2bea95e655fedd3f43a7aa4d7ee68c4dd2cca75))
+
+### Documentation
+
+- Add missing CLI flags and features to README and docs index ([b7a44a9](https://github.com/huynguyengl99/copit/commit/b7a44a9d1e58321356d6074399d9ee9a44950386))
+
+### Features
+
+- Add frozen flag, glob excludes, and rename sync to update-all ([f3d25c3](https://github.com/huynguyengl99/copit/commit/f3d25c3ca21517bdc84cd12731203857a56fdf8e))
+- Add config-level settings with project defaults and per-source overrides ([d0a26d0](https://github.com/huynguyengl99/copit/commit/d0a26d01f025e0e373aa8cae7b524ef144ff8364))
+- Flatten [project] config into root-level fields ([80774bb](https://github.com/huynguyengl99/copit/commit/80774bb0a201b170e0b78fcfd41bb14acb61df75))
+- Implement license track ([3829505](https://github.com/huynguyengl99/copit/commit/3829505d8e77170912b9f7ebf4491ebb78e3ee78))
+- Add licenses-sync command and refactor license path layout ([e715c17](https://github.com/huynguyengl99/copit/commit/e715c177a074278b8556a7230ff6b2d75d543a6f))
+
 ## [0.2.2] - 2026-03-08
 
 ### Bug Fixes
 
 - Install script unbound variable error in exit trap ([57926f2](https://github.com/huynguyengl99/copit/commit/57926f2b621987b565aeeb486f230844a1be2e5f))
+
+### Miscellaneous
+
+- Release v0.2.2 ([5fc1d38](https://github.com/huynguyengl99/copit/commit/5fc1d380b87b8d98939556a39be8c0084ee4e99e))
 
 ## [0.2.1] - 2026-03-08
 

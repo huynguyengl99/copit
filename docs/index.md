@@ -19,7 +19,9 @@ No hidden abstractions, no dependency lock-in. Override anything, keep what you 
 - **ZIP archives** — Extract files from ZIP archives with inner path selection
 - **Tracking** — `copit.toml` tracks all copied sources for easy updates
 - **Update & update-all** — Re-fetch individual sources or update all at once
+- **Freeze** — Pin sources with `--freeze` to skip them during updates; unpin with `--unfreeze`
 - **Exclude modified** — Skip files you've customized during updates, with optional `.orig` backups
+- **Per-source settings** — Override `overwrite`, `skip`, and `backup` per source, with CLI flags taking highest priority
 - **License auto-copy** — Automatically copies LICENSE files from GitHub repos alongside your source files
 - **License organization** — Centralize licenses in a dedicated directory or keep them side-by-side, and reorganize anytime with `licenses-sync`
 
@@ -40,6 +42,12 @@ copit update vendor/serde
 
 # Update all tracked sources
 copit update-all
+
+# Remove a tracked source
+copit remove vendor/serde
+
+# Reorganize license files into a centralized directory
+copit licenses-sync --licenses-dir licenses
 ```
 
 ## Installation

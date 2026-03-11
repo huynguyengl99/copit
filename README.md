@@ -105,6 +105,7 @@ Options:
       --overwrite    Overwrite existing files without prompting
       --skip         Skip existing files without prompting
       --backup       Save .orig copy of new version for excluded modified files
+      --freeze       Pin this source so update and update-all skip it
       --no-license   Skip copying license files
 ```
 
@@ -134,6 +135,10 @@ copit update vendor/mylib --backup
 Options:
 - `--ref <version>` — Override the version ref for this update (updates the source string and ref field)
 - `--backup` — Save `.orig` copy of new version for excluded modified files
+- `--overwrite` — Overwrite existing files without prompting
+- `--skip` — Skip existing files without prompting
+- `--freeze` — Pin this source so update and update-all skip it
+- `--unfreeze` — Unpin this source so it can be updated again
 
 ### `copit update-all`
 
@@ -150,6 +155,8 @@ copit update-all --backup
 Options:
 - `--ref <version>` — Override the version ref (errors if multiple sources are tracked)
 - `--backup` — Save `.orig` copy of new version for excluded modified files
+- `--overwrite` — Overwrite existing files without prompting
+- `--skip` — Skip existing files without prompting
 
 ### `copit licenses-sync`
 

@@ -16,6 +16,7 @@ async fn main() -> anyhow::Result<()> {
         Command::Remove(cmd) => commands::remove::run(&cmd)?,
         Command::Update(cmd) => commands::update::run(&cmd).await?,
         Command::UpdateAll(cmd) => commands::update_all::run(&cmd).await?,
+        Command::LicensesSync(cmd) => commands::licenses_sync::run(&cmd)?,
     }
 
     Ok(())

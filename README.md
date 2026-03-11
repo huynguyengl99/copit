@@ -151,6 +151,26 @@ Options:
 - `--ref <version>` — Override the version ref (errors if multiple sources are tracked)
 - `--backup` — Save `.orig` copy of new version for excluded modified files
 
+### `copit licenses-sync`
+
+Reorganizes license files to match the current (or a new) `licenses_dir` configuration — moving between centralized and side-by-side layouts.
+
+```bash
+# Move all license files into a centralized directory
+copit licenses-sync --licenses-dir licenses
+
+# Move licenses back to side-by-side (next to each source)
+copit licenses-sync --no-dir
+
+# Re-sync based on current config
+copit licenses-sync
+```
+
+Options:
+- `--licenses-dir <DIR>` — Move licenses into a centralized directory and set `licenses_dir` in config
+- `--no-dir` — Move licenses back to side-by-side and remove `licenses_dir` from config
+- `--dry-run` — Preview what would be moved without making changes
+
 ### `copit remove <path>...` (alias: `rm`)
 
 Removes previously copied files from disk and their entries from `copit.toml`.
@@ -184,7 +204,7 @@ excludes = ["Cargo.toml", "src/lib.rs"]
 
 Root-level fields:
 - `overwrite`/`skip`/`backup`: Project defaults. Priority: CLI flags > per-source > root-level > `false`.
-- `licenses_dir`: Centralized directory for license files. When set, licenses go to `{licenses_dir}/{owner}-{repo}/` instead of next to the source.
+- `licenses_dir`: Centralized directory for license files. When set, licenses go to `{licenses_dir}/{relative_path}/` (mirroring the target structure) instead of next to the source.
 
 Per-source (`[[sources]]`) fields:
 - `ref`: The user-specified version string (branch/tag/sha)

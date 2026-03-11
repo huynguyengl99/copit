@@ -30,6 +30,8 @@ pub enum Command {
     Update(UpdateCommand),
     /// Re-fetch all tracked sources
     UpdateAll(UpdateAllCommand),
+    /// Reorganize license files (centralize or restore side-by-side)
+    LicensesSync(LicensesSyncCommand),
 }
 
 #[derive(Parser)]
@@ -174,4 +176,30 @@ pub struct UpdateAllCommand {
     /// Skip existing files without prompting
     #[arg(long, conflicts_with = "overwrite")]
     pub skip: bool,
+}
+
+#[derive(Parser)]
+#[command(after_help = "\
+Examples:
+  # Move licenses into a centralized directory
+  copit licenses-sync --licenses-dir licenses
+
+  # Move licenses back to side-by-side (next to each source)
+  copit licenses-sync --no-dir
+
+  # Re-sync based on current config
+  copit licenses-sync
+")]
+pub struct LicensesSyncCommand {
+    /// Move licenses back to side-by-side (remove licenses_dir)
+    #[arg(long, conflicts_with = "licenses_dir")]
+    pub no_dir: bool,
+
+    /// Move licenses into a centralized directory
+    #[arg(short = 'l', long)]
+    pub licenses_dir: Option<String>,
+
+    /// Preview what would be moved without making changes
+    #[arg(long)]
+    pub dry_run: bool,
 }

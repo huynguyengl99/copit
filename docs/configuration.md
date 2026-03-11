@@ -26,7 +26,7 @@ excludes = ["Cargo.toml", "src/lib.rs"]
 | `overwrite` | Default: overwrite existing files without prompting |
 | `skip` | Default: skip existing files without prompting |
 | `backup` | Default: save `.orig` backup for excluded modified files |
-| `licenses_dir` | Centralized directory for license files. When set, licenses are stored in `{licenses_dir}/{owner}-{repo}/` instead of next to the source files |
+| `licenses_dir` | Centralized directory for license files. When set, licenses are stored in `{licenses_dir}/{relative_path}/` (mirroring the target structure) instead of next to the source files |
 
 ### `[[sources]]`
 
@@ -52,8 +52,8 @@ Settings priority: CLI flags > per-source config > root-level config > default (
 
 When adding or updating GitHub sources, copit automatically copies LICENSE files from the repository root alongside your source files. By default, licenses are placed side-by-side with the copied source:
 
-- **Single file** — license is placed in the same directory as the file
-- **Directory** — license is placed inside the copied directory
+- **Single file** — license is placed in a stem-named subfolder (e.g. `vendor/lib.rs` → `vendor/lib/LICENSE`)
+- **Directory** — license is placed inside the copied directory (e.g. `vendor/mylib/` → `vendor/mylib/LICENSE`)
 
 To skip license copying, use `--no-license` with `add`. This sets `no_license = true` on the source entry, so subsequent `update` and `update-all` calls also skip licenses for that source.
 
@@ -64,4 +64,12 @@ target = "vendor"
 licenses_dir = "licenses"
 ```
 
-This stores licenses in `licenses/{owner}-{repo}/` (e.g., `licenses/serde-rs-serde/LICENSE`).
+This stores licenses mirroring the target structure:
+
+| Source path | License path |
+|---|---|
+| `vendor/mylib/` (directory) | `licenses/mylib/LICENSE` |
+| `vendor/lib.rs` (single file) | `licenses/lib/LICENSE` |
+| `vendor/utils/helpers.rs` | `licenses/utils/helpers/LICENSE` |
+
+Use `copit licenses-sync` to reorganize existing license files when changing this setting.

@@ -12,6 +12,7 @@ This document contains the help content for the `copit` command-line program.
 * [`copit remove`↴](#copit-remove)
 * [`copit update`↴](#copit-update)
 * [`copit update-all`↴](#copit-update-all)
+* [`copit licenses-sync`↴](#copit-licenses-sync)
 
 ## `copit`
 
@@ -26,6 +27,7 @@ Copy reusable source code into your project
 * `remove` — Remove previously copied source files
 * `update` — Re-fetch specific tracked source(s) by path
 * `update-all` — Re-fetch all tracked sources
+* `licenses-sync` — Reorganize license files (centralize or restore side-by-side)
 
 
 
@@ -159,6 +161,31 @@ Examples:
 * `--backup` — Save .orig copy of new version for excluded modified files
 * `--overwrite` — Overwrite existing files without prompting
 * `--skip` — Skip existing files without prompting
+
+
+
+## `copit licenses-sync`
+
+Reorganize license files (centralize or restore side-by-side)
+
+**Usage:** `copit licenses-sync [OPTIONS]`
+
+Examples:
+  # Move licenses into a centralized directory
+  copit licenses-sync --licenses-dir licenses
+
+  # Move licenses back to side-by-side (next to each source)
+  copit licenses-sync --no-dir
+
+  # Re-sync based on current config
+  copit licenses-sync
+
+
+###### **Options:**
+
+* `--no-dir` — Move licenses back to side-by-side (remove licenses_dir)
+* `-l`, `--licenses-dir <LICENSES_DIR>` — Move licenses into a centralized directory
+* `--dry-run` — Preview what would be moved without making changes
 
 
 

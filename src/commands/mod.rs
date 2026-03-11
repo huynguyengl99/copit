@@ -12,6 +12,7 @@
 pub mod add;
 pub mod common;
 pub mod init;
+pub mod licenses_sync;
 pub mod remove;
 
 pub mod update;

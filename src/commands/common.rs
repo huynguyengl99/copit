@@ -204,31 +204,117 @@ pub fn write_file(dest: &Path, contents: &[u8]) -> Result<()> {
     Ok(())
 }
 
+/// Compute the directory where license files should be placed for a source.
+///
+/// If `licenses_dir` is set, mirrors the target structure:
+/// strips `target` prefix from `track_path` and joins the remainder onto `licenses_dir`.
+/// For single-file sources, uses the filename without extension as the folder name
+/// (e.g. `vendor/lib.rs` → `licenses/lib/`).
+/// For directory sources, uses the directory name as-is
+/// (e.g. `vendor/mylib` → `licenses/mylib/`).
+///
+/// Without `licenses_dir`, places licenses side-by-side:
+/// single files get licenses in a stem-named subfolder (e.g. `vendor/lib.rs` → `vendor/lib/`),
+/// directories get licenses inside.
+pub fn license_dir_for(track_path: &Path, target: &str, licenses_dir: Option<&str>) -> PathBuf {
+    if let Some(dir) = licenses_dir {
+        let relative = track_path.strip_prefix(target).unwrap_or(track_path);
+        // For single files, use the stem (filename without extension) as folder
+        if track_path.extension().is_some() {
+            let parent = relative.parent().unwrap_or(Path::new(""));
+            let stem = relative.file_stem().unwrap_or(relative.as_os_str());
+            PathBuf::from(dir).join(parent).join(stem)
+        } else {
+            PathBuf::from(dir).join(relative)
+        }
+    } else if track_path.extension().is_some() {
+        // Single file — license in a stem-named subfolder next to it
+        // e.g. vendor/lib.rs → vendor/lib/LICENSE
+        // This avoids collisions when multiple single-file sources share a parent.
+        let parent = track_path.parent().unwrap_or(Path::new("."));
+        let stem = track_path.file_stem().unwrap_or(track_path.as_os_str());
+        parent.join(stem)
+    } else {
+        // Directory — license inside it
+        track_path.to_path_buf()
+    }
+}
+
+/// Remove license files associated with a source.
+///
+/// Uses [`license_dir_for`] to find the license directory, then removes any
+/// known license files. If the license directory becomes empty after removal
+/// (and it's not the same as `track_path`), it is also deleted along with any
+/// empty ancestors.
+pub fn remove_license_files(
+    track_path: &Path,
+    target: &str,
+    licenses_dir: Option<&str>,
+) -> Result<()> {
+    use crate::sources::github::LICENSE_NAMES;
+
+    let license_dir = license_dir_for(track_path, target, licenses_dir);
+
+    // For directory sources without licenses_dir, the license dir IS the track path.
+    // Those license files get removed when the source directory itself is deleted,
+    // so skip cleanup here.
+    if license_dir == track_path {
+        return Ok(());
+    }
+
+    if !license_dir.exists() {
+        return Ok(());
+    }
+
+    let mut removed_any = false;
+    for name in LICENSE_NAMES {
+        let path = license_dir.join(name);
+        if path.is_file() {
+            std::fs::remove_file(&path)
+                .with_context(|| format!("Failed to remove license: {}", path.display()))?;
+            println!("Removed license: {}", portable_display(&path));
+            removed_any = true;
+        }
+    }
+
+    // Clean up empty license directory and ancestors
+    if removed_any {
+        let mut dir = Some(license_dir.as_path());
+        while let Some(d) = dir {
+            if d == Path::new("") || d == Path::new(".") {
+                break;
+            }
+            match std::fs::read_dir(d) {
+                Ok(mut entries) => {
+                    if entries.next().is_none() {
+                        let _ = std::fs::remove_dir(d);
+                        dir = d.parent();
+                    } else {
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// Write license files to disk alongside the copied source.
 ///
-/// If `licenses_dir` is set, files go into `{licenses_dir}/{owner}-{repo}/`.
-/// Otherwise, for single-file sources they are placed next to the file, and
-/// for directory sources they are placed inside the directory.
+/// Uses [`license_dir_for`] to determine the destination directory.
 pub fn write_license_files(
     license_files: &[(String, Vec<u8>)],
-    owner: &str,
-    repo: &str,
     track_path: &Path,
+    target: &str,
     licenses_dir: Option<&str>,
 ) -> Result<()> {
     if license_files.is_empty() {
         return Ok(());
     }
 
-    let dest_dir = if let Some(dir) = licenses_dir {
-        PathBuf::from(dir).join(format!("{owner}-{repo}"))
-    } else if track_path.extension().is_some() {
-        // Single file — write license next to it
-        track_path.parent().unwrap_or(Path::new(".")).to_path_buf()
-    } else {
-        // Directory — write license into it
-        track_path.to_path_buf()
-    };
+    let dest_dir = license_dir_for(track_path, target, licenses_dir);
 
     for (name, contents) in license_files {
         let dest = dest_dir.join(name);
@@ -237,4 +323,60 @@ pub fn write_license_files(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn license_dir_for_centralized_single_file() {
+        let result = license_dir_for(Path::new("vendor/lib.rs"), "vendor", Some("licenses"));
+        assert_eq!(result, PathBuf::from("licenses/lib"));
+    }
+
+    #[test]
+    fn license_dir_for_centralized_directory() {
+        let result = license_dir_for(Path::new("vendor/mylib"), "vendor", Some("licenses"));
+        assert_eq!(result, PathBuf::from("licenses/mylib"));
+    }
+
+    #[test]
+    fn license_dir_for_side_by_side_single_file() {
+        let result = license_dir_for(Path::new("vendor/lib.rs"), "vendor", None);
+        assert_eq!(result, PathBuf::from("vendor/lib"));
+    }
+
+    #[test]
+    fn license_dir_for_side_by_side_directory() {
+        let result = license_dir_for(Path::new("vendor/mylib"), "vendor", None);
+        assert_eq!(result, PathBuf::from("vendor/mylib"));
+    }
+
+    #[test]
+    fn license_dir_for_nested_target_single_file() {
+        let result = license_dir_for(
+            Path::new("my_proj/ext/utils/helpers.rs"),
+            "my_proj/ext",
+            Some("licenses"),
+        );
+        assert_eq!(result, PathBuf::from("licenses/utils/helpers"));
+    }
+
+    #[test]
+    fn license_dir_for_nested_target_directory() {
+        let result = license_dir_for(
+            Path::new("my_proj/ext/commands"),
+            "my_proj/ext",
+            Some("licenses"),
+        );
+        assert_eq!(result, PathBuf::from("licenses/commands"));
+    }
+
+    #[test]
+    fn license_dir_for_strip_prefix_not_matching() {
+        // When track_path doesn't start with target, uses full path as relative
+        let result = license_dir_for(Path::new("other/lib.rs"), "vendor", Some("licenses"));
+        assert_eq!(result, PathBuf::from("licenses/other/lib"));
+    }
 }

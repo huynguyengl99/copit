@@ -4,10 +4,12 @@
 //! corresponding files from disk.
 
 use anyhow::{bail, Context, Result};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::cli::RemoveCommand;
 use crate::config;
+
+use super::common;
 
 /// Run the `remove` command.
 ///
@@ -33,6 +35,14 @@ pub fn run(cmd: &RemoveCommand) -> Result<()> {
         return Ok(());
     }
 
+    // Collect entries that will be removed (need entry data for license cleanup)
+    let entries_to_remove: Vec<_> = cfg
+        .sources
+        .iter()
+        .filter(|e| paths_to_remove.contains(&e.path))
+        .cloned()
+        .collect();
+
     // Remove entries from config first (safer: if this fails, files remain intact)
     let removed = config::remove_source_entries(&paths_to_remove)?;
 
@@ -49,7 +59,7 @@ pub fn run(cmd: &RemoveCommand) -> Result<()> {
         println!("Removed {} source(s) from copit.toml", removed.len());
     }
 
-    // Remove files from disk (only for paths that were actually tracked)
+    // Remove files and associated licenses from disk
     for path in &removed {
         let file_path = Path::new(path);
         if file_path.exists() {
@@ -63,6 +73,18 @@ pub fn run(cmd: &RemoveCommand) -> Result<()> {
             println!("Removed: {path}");
         } else {
             println!("Not found on disk (already removed): {path}");
+        }
+
+        // Clean up associated license files
+        if let Some(entry) = entries_to_remove.iter().find(|e| &e.path == path) {
+            if entry.no_license != Some(true) {
+                let track_path = PathBuf::from(&entry.path);
+                common::remove_license_files(
+                    &track_path,
+                    &cfg.target,
+                    cfg.licenses_dir.as_deref(),
+                )?;
+            }
         }
     }
 

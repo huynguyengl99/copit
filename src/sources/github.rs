@@ -12,10 +12,17 @@ use super::zip::{extract_from_bytes, ExtractedFiles};
 const GITHUB_ARCHIVE_BASE: &str = "https://github.com";
 const GITHUB_API_BASE: &str = "https://api.github.com";
 
-const LICENSE_NAMES: &[&str] = &[
-    "LICENSE", "LICENSE.md", "LICENSE.txt", "LICENSE-MIT",
-    "LICENSE-APACHE", "LICENCE", "LICENCE.md", "LICENCE.txt",
-    "COPYING", "COPYING.md",
+pub const LICENSE_NAMES: &[&str] = &[
+    "LICENSE",
+    "LICENSE.md",
+    "LICENSE.txt",
+    "LICENSE-MIT",
+    "LICENSE-APACHE",
+    "LICENCE",
+    "LICENCE.md",
+    "LICENCE.txt",
+    "COPYING",
+    "COPYING.md",
 ];
 
 /// Result of fetching from a GitHub repository, separating requested source
@@ -95,13 +102,16 @@ async fn fetch_github_from(
     let all_root = extract_from_bytes(&bytes, None, Some(&strip_prefix))?;
     for (name, content) in all_root {
         if name.contains('/') {
-            continue
+            continue;
         }
         if LICENSE_NAMES.iter().any(|l| l.eq_ignore_ascii_case(&name)) {
             license_files.push((name, content))
         }
     }
-    Ok(GitHubFetchResult{files, license_files})
+    Ok(GitHubFetchResult {
+        files,
+        license_files,
+    })
 }
 
 /// Resolve the commit SHA for a given version ref (branch/tag/sha) via the GitHub API.
@@ -338,11 +348,19 @@ mod tests {
         assert_eq!(result.files.len(), 1);
         assert_eq!(result.license_files.len(), 2);
 
-        let license_names: Vec<&str> = result.license_files.iter().map(|(n, _)| n.as_str()).collect();
+        let license_names: Vec<&str> = result
+            .license_files
+            .iter()
+            .map(|(n, _)| n.as_str())
+            .collect();
         assert!(license_names.contains(&"LICENSE"));
         assert!(license_names.contains(&"LICENSE-APACHE"));
 
-        let mit = result.license_files.iter().find(|(n, _)| n == "LICENSE").unwrap();
+        let mit = result
+            .license_files
+            .iter()
+            .find(|(n, _)| n == "LICENSE")
+            .unwrap();
         assert_eq!(mit.1, b"MIT License");
 
         mock.assert_async().await;

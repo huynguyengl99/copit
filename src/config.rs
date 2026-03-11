@@ -265,7 +265,15 @@ pub fn add_source_entry(
     frozen: Option<bool>,
     no_license: Option<bool>,
 ) -> Result<()> {
-    add_source_entry_to(&config_path(), path, source, version_ref, commit, frozen, no_license)
+    add_source_entry_to(
+        &config_path(),
+        path,
+        source,
+        version_ref,
+        commit,
+        frozen,
+        no_license,
+    )
 }
 
 pub fn add_source_entry_to(
@@ -342,6 +350,31 @@ pub fn add_source_entry_to(
         }
         table["copied_at"] = toml_edit::value(&now);
         sources.push(table);
+    }
+
+    std::fs::write(config_file, doc.to_string()).context("Failed to write copit.toml")?;
+    Ok(())
+}
+
+/// Update the root-level `licenses_dir` field in `copit.toml`.
+/// Pass `None` to remove it, `Some(dir)` to set it.
+pub fn update_licenses_dir(licenses_dir: Option<&str>) -> Result<()> {
+    update_licenses_dir_in(&config_path(), licenses_dir)
+}
+
+pub fn update_licenses_dir_in(config_file: &Path, licenses_dir: Option<&str>) -> Result<()> {
+    let content = std::fs::read_to_string(config_file).context("Failed to read copit.toml")?;
+    let mut doc = content
+        .parse::<toml_edit::DocumentMut>()
+        .context("Failed to parse copit.toml for editing")?;
+
+    match licenses_dir {
+        Some(dir) => {
+            doc["licenses_dir"] = toml_edit::value(dir);
+        }
+        None => {
+            doc.remove("licenses_dir");
+        }
     }
 
     std::fs::write(config_file, doc.to_string()).context("Failed to write copit.toml")?;
@@ -954,4 +987,21 @@ copied_at = "2026-03-07T00:00:00Z"
         assert!(s.backup);
     }
 
+    #[test]
+    fn update_licenses_dir_sets_and_removes() {
+        let dir = TempDir::new().unwrap();
+        let config_file = config_path_in(dir.path());
+
+        save_config_to(&CopitConfig::default(), &config_file).unwrap();
+
+        // Set licenses_dir
+        update_licenses_dir_in(&config_file, Some("licenses")).unwrap();
+        let loaded = load_config_from(&config_file).unwrap();
+        assert_eq!(loaded.licenses_dir, Some("licenses".to_string()));
+
+        // Remove licenses_dir
+        update_licenses_dir_in(&config_file, None).unwrap();
+        let loaded = load_config_from(&config_file).unwrap();
+        assert_eq!(loaded.licenses_dir, None);
+    }
 }

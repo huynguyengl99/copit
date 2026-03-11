@@ -37,7 +37,14 @@ pub async fn run(cmd: &AddCommand) -> Result<()> {
 
     for source_str in &cmd.sources {
         let source = sources::parse_source(source_str)?;
-        add_source(&source, base_target, cmd, &settings, cfg.licenses_dir.as_deref()).await?;
+        add_source(
+            &source,
+            base_target,
+            cmd,
+            &settings,
+            cfg.licenses_dir.as_deref(),
+        )
+        .await?;
     }
 
     Ok(())
@@ -143,15 +150,7 @@ async fn add_source(
     )?;
     let license_files = fetch_result.license_files;
     if !cmd.no_license && !license_files.is_empty() {
-        if let Source::GitHub { owner, repo, .. } = source {
-            common::write_license_files(
-                &license_files,
-                owner,
-                repo,
-                &track_path,
-                licenses_dir,
-            )?;
-        }
+        common::write_license_files(&license_files, &track_path, base_target, licenses_dir)?;
     }
 
     Ok(())
@@ -170,12 +169,10 @@ pub async fn fetch_source(source: &Source) -> Result<FetchResult> {
             path,
         } => {
             let result = sources::github::fetch_github(owner, repo, version, path).await?;
-            Ok(
-                FetchResult{
-                    files: result.files.into_iter().collect(),
-                    license_files: result.license_files
-                }
-            )
+            Ok(FetchResult {
+                files: result.files.into_iter().collect(),
+                license_files: result.license_files,
+            })
         }
         Source::Http { url } => {
             let bytes = sources::http::fetch_url(url).await?;

@@ -1,5 +1,6 @@
 mod add;
 mod init;
+mod licenses_sync;
 mod remove;
 mod update;
 mod update_all;
@@ -42,6 +43,7 @@ fn help_shows_all_commands() {
             .and(predicates::str::contains("add"))
             .and(predicates::str::contains("remove"))
             .and(predicates::str::contains("update"))
-            .and(predicates::str::contains("update-all")),
+            .and(predicates::str::contains("update-all"))
+            .and(predicates::str::contains("licenses-sync")),
     );
 }

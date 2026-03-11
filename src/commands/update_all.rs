@@ -39,7 +39,15 @@ pub async fn run(cmd: &UpdateAllCommand) -> Result<()> {
         let settings =
             ResolvedSettings::resolve(cmd.overwrite, cmd.skip, cmd.backup, Some(entry), &cfg);
 
-        super::update::update_source(entry, cmd.version_ref.as_deref(), settings, None, cfg.licenses_dir.as_deref()).await?;
+        super::update::update_source(
+            entry,
+            cmd.version_ref.as_deref(),
+            settings,
+            None,
+            &cfg.target,
+            cfg.licenses_dir.as_deref(),
+        )
+        .await?;
     }
 
     Ok(())

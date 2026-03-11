@@ -1,3 +1,4 @@
+use predicates::prelude::*;
 use tempfile::TempDir;
 
 use super::copit_cmd;
@@ -106,4 +107,145 @@ copied_at = "2026-01-01T00:00:00Z"
 
     assert!(!dir.path().join("vendor/a.txt").exists());
     assert!(!dir.path().join("vendor/b.txt").exists());
+}
+
+#[test]
+fn removes_license_files_centralized_single_file() {
+    let dir = TempDir::new().unwrap();
+    std::fs::write(
+        dir.path().join("copit.toml"),
+        r#"target = "vendor"
+licenses_dir = "licenses"
+
+[[sources]]
+path = "vendor/lib.rs"
+source = "github:owner/repo@v1/src/lib.rs"
+ref = "v1"
+copied_at = "2026-01-01T00:00:00Z"
+"#,
+    )
+    .unwrap();
+
+    std::fs::create_dir_all(dir.path().join("vendor")).unwrap();
+    std::fs::write(dir.path().join("vendor/lib.rs"), "code").unwrap();
+    std::fs::create_dir_all(dir.path().join("licenses/lib")).unwrap();
+    std::fs::write(dir.path().join("licenses/lib/LICENSE"), "MIT License").unwrap();
+
+    copit_cmd()
+        .args(["remove", "vendor/lib.rs"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Removed: vendor/lib.rs").and(
+            predicates::str::contains("Removed license: licenses/lib/LICENSE"),
+        ));
+
+    assert!(!dir.path().join("vendor/lib.rs").exists());
+    assert!(!dir.path().join("licenses/lib/LICENSE").exists());
+    // Empty licenses/lib/ dir should be cleaned up
+    assert!(!dir.path().join("licenses/lib").exists());
+}
+
+#[test]
+fn removes_license_files_side_by_side_single_file() {
+    let dir = TempDir::new().unwrap();
+    std::fs::write(
+        dir.path().join("copit.toml"),
+        r#"target = "vendor"
+
+[[sources]]
+path = "vendor/lib.rs"
+source = "github:owner/repo@v1/src/lib.rs"
+ref = "v1"
+copied_at = "2026-01-01T00:00:00Z"
+"#,
+    )
+    .unwrap();
+
+    std::fs::create_dir_all(dir.path().join("vendor")).unwrap();
+    std::fs::write(dir.path().join("vendor/lib.rs"), "code").unwrap();
+    std::fs::create_dir_all(dir.path().join("vendor/lib")).unwrap();
+    std::fs::write(dir.path().join("vendor/lib/LICENSE"), "MIT License").unwrap();
+
+    copit_cmd()
+        .args(["remove", "vendor/lib.rs"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains(
+            "Removed license: vendor/lib/LICENSE",
+        ));
+
+    assert!(!dir.path().join("vendor/lib.rs").exists());
+    assert!(!dir.path().join("vendor/lib/LICENSE").exists());
+    assert!(!dir.path().join("vendor/lib").exists());
+}
+
+#[test]
+fn removes_license_files_centralized_directory() {
+    let dir = TempDir::new().unwrap();
+    std::fs::write(
+        dir.path().join("copit.toml"),
+        r#"target = "vendor"
+licenses_dir = "licenses"
+
+[[sources]]
+path = "vendor/mylib"
+source = "github:owner/repo@v1/src/mylib"
+ref = "v1"
+copied_at = "2026-01-01T00:00:00Z"
+"#,
+    )
+    .unwrap();
+
+    std::fs::create_dir_all(dir.path().join("vendor/mylib")).unwrap();
+    std::fs::write(dir.path().join("vendor/mylib/main.rs"), "code").unwrap();
+    std::fs::create_dir_all(dir.path().join("licenses/mylib")).unwrap();
+    std::fs::write(dir.path().join("licenses/mylib/LICENSE"), "MIT License").unwrap();
+
+    copit_cmd()
+        .args(["remove", "vendor/mylib"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(
+            predicates::str::contains("Removed: vendor/mylib").and(predicates::str::contains(
+                "Removed license: licenses/mylib/LICENSE",
+            )),
+        );
+
+    assert!(!dir.path().join("vendor/mylib").exists());
+    assert!(!dir.path().join("licenses/mylib").exists());
+}
+
+#[test]
+fn skips_license_cleanup_for_no_license_entry() {
+    let dir = TempDir::new().unwrap();
+    std::fs::write(
+        dir.path().join("copit.toml"),
+        r#"target = "vendor"
+licenses_dir = "licenses"
+
+[[sources]]
+path = "vendor/lib.rs"
+source = "github:owner/repo@v1/src/lib.rs"
+ref = "v1"
+no_license = true
+copied_at = "2026-01-01T00:00:00Z"
+"#,
+    )
+    .unwrap();
+
+    std::fs::create_dir_all(dir.path().join("vendor")).unwrap();
+    std::fs::write(dir.path().join("vendor/lib.rs"), "code").unwrap();
+
+    copit_cmd()
+        .args(["remove", "vendor/lib.rs"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(
+            predicates::str::contains("Removed: vendor/lib.rs")
+                .and(predicates::str::contains("Removed license").not()),
+        );
 }

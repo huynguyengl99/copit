@@ -73,18 +73,34 @@ pub fn compute_dest(
 /// [`validate_no_path_traversal`] compares a destination against its own base, so it
 /// cannot judge the base itself. An absolute or escaping target would pass that check
 /// while writing anywhere on disk.
+///
+/// Judged on the string rather than via [`Path`], whose notion of "absolute" is platform
+/// specific: Windows does not count a leading `/` as absolute, and Unix treats `C:\\x`
+/// as an ordinary filename. A `copit.toml` is committed and shared across machines, so
+/// the same target has to be accepted or rejected identically everywhere.
 pub fn validate_install_target(target: &str) -> Result<()> {
-    let path = Path::new(target);
+    if target.is_empty() {
+        bail!("Target directory cannot be empty");
+    }
 
-    if path.is_absolute() || matches!(path.components().next(), Some(Component::Prefix(_))) {
+    if target.starts_with('/') || target.starts_with('\\') {
         bail!("Target directory must be relative to the project: {target}");
     }
 
+    // A drive specifier, absolute (`C:\\x`) or drive-relative (`C:x`); both leave the
+    // project.
+    let mut chars = target.chars();
+    if let (Some(letter), Some(':')) = (chars.next(), chars.next()) {
+        if letter.is_ascii_alphabetic() {
+            bail!("Target directory must be relative to the project: {target}");
+        }
+    }
+
     let mut depth: i32 = 0;
-    for component in path.components() {
-        match component {
-            Component::CurDir => {}
-            Component::ParentDir => {
+    for part in target.split(['/', '\\']) {
+        match part {
+            "" | "." => {}
+            ".." => {
                 depth -= 1;
                 if depth < 0 {
                     bail!("Target directory escapes the project: {target}");
@@ -416,8 +432,60 @@ mod tests {
         assert!(validate_install_target("vendor").is_ok());
         assert!(validate_install_target("app/components").is_ok());
         assert!(validate_install_target("app/../components").is_ok());
+        assert!(validate_install_target("./app/components").is_ok());
 
-        assert!(validate_install_target("/etc/cron.d").is_err());
+        assert!(validate_install_target("").is_err());
         assert!(validate_install_target("../../shared").is_err());
+        assert!(validate_install_target("app/../../shared").is_err());
+    }
+
+    #[test]
+    fn an_install_target_is_judged_the_same_on_every_platform() {
+        // Path::is_absolute is platform specific: Windows does not count a leading `/`,
+        // and Unix reads `C:\\x` as an ordinary filename. copit.toml is shared across
+        // machines, so these must be rejected everywhere, not just where they are
+        // locally "absolute".
+        for target in [
+            "/etc/cron.d",
+            "\\etc\\cron.d",
+            "C:\\Windows\\Temp",
+            "C:temp",
+            "..\\..\\shared",
+        ] {
+            assert!(
+                validate_install_target(target).is_err(),
+                "{target} should be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn a_component_file_resolves_under_its_target() {
+        // Mirrors what copy_component does: the index lists inner paths with forward
+        // slashes, and they are joined onto the target on every platform.
+        let target = "app/components";
+        let track_path = PathBuf::from(target).join("auth_core");
+
+        for within in ["__init__.py", "stores/sqlite.py", "a/b/c/deep.py"] {
+            let dest = track_path.join(within);
+            assert!(
+                validate_no_path_traversal(&dest, target).is_ok(),
+                "{within} should resolve inside {target}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_component_file_cannot_climb_out_of_its_target() {
+        let target = "app/components";
+        let track_path = PathBuf::from(target).join("auth_core");
+
+        for within in ["../../../etc/passwd", "../../../../outside.py"] {
+            let dest = track_path.join(within);
+            assert!(
+                validate_no_path_traversal(&dest, target).is_err(),
+                "{within} should be rejected"
+            );
+        }
     }
 }

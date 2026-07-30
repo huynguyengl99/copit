@@ -116,6 +116,35 @@ Options:
 | GitHub | `github:owner/repo@ref/path/to/file` (alias: `gh:`) |
 | HTTP URL | `https://example.com/file.txt` |
 | ZIP archive | `https://example.com/archive.zip#inner/path` |
+| Registry component | `@registry/component` |
+
+### Registries
+
+A registry publishes named components you install by id, resolving what they require and
+installing their package dependencies:
+
+```bash
+copit registry add my-kit github:owner/repo@v1.0.0 --to app/components
+copit add @my-kit/auth
+```
+
+```
+  logger  0.1.0  (core)  (required)
+  auth    0.1.0  (core)
+
+  Files -> app/components/
+    logger/  (6 files)
+    auth/    (6 files)
+
+  Packages (via uv): my-runtime>=0.1
+```
+
+Dependencies are copied before the components that need them, and packages go to
+whichever manager the project already uses: uv, poetry, pdm, pip, pnpm, yarn, npm or
+cargo, chosen by the registry's declared ecosystem.
+
+See [Registries](https://huynguyengl99.github.io/copit/registry/) for the index format,
+`registry.json`, and how to publish one.
 
 ### `copit update <path>...`
 

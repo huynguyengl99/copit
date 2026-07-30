@@ -32,6 +32,75 @@ pub enum Command {
     UpdateAll(UpdateAllCommand),
     /// Reorganize license files (centralize or restore side-by-side)
     LicensesSync(LicensesSyncCommand),
+    /// Configure and inspect component registries
+    #[command(subcommand)]
+    Registry(RegistryCommand),
+    /// Search a registry's components
+    Search(SearchCommand),
+    /// Show what a component installs
+    Info(InfoCommand),
+}
+
+#[derive(Subcommand)]
+pub enum RegistryCommand {
+    /// Configure a registry so its components can be installed by id
+    Add(RegistryAddCommand),
+    /// List configured registries
+    List,
+}
+
+#[derive(Parser)]
+#[command(after_help = "\
+Examples:
+  # Configure a registry, then install by id
+  copit registry add my-kit github:owner/repo@v1.0.0 --to app/components --variant postgres
+  copit add @my-kit/auth
+
+  # Develop a registry locally, before publishing it
+  copit registry add my-kit ../my-registry
+")]
+pub struct RegistryAddCommand {
+    /// Name used in `@name/component`
+    pub name: String,
+
+    /// Where the registry lives: `github:owner/repo@ref`, or a local directory
+    pub source: String,
+
+    /// Target directory for this registry's components
+    #[arg(long = "to")]
+    pub to: Option<String>,
+
+    /// Registry-defined variant to select (repeatable)
+    #[arg(long = "variant")]
+    pub variants: Vec<String>,
+
+    /// Package manager to use; detected when omitted. Use `none` to never install.
+    #[arg(long)]
+    pub package_manager: Option<String>,
+}
+
+#[derive(Parser)]
+#[command(after_help = "\
+Examples:
+  copit search @my-kit cache
+  copit search @my-kit          # list everything
+")]
+pub struct SearchCommand {
+    /// Registry to search, as `@name`
+    pub registry: String,
+
+    /// Text matched against ids, titles, descriptions and tags
+    pub query: Option<String>,
+}
+
+#[derive(Parser)]
+#[command(after_help = "\
+Examples:
+  copit info @my-kit/auth
+")]
+pub struct InfoCommand {
+    /// Component to describe, as `@registry/component`
+    pub component: String,
 }
 
 #[derive(Parser)]
@@ -75,6 +144,10 @@ Examples:
 
   # Copy to a specific directory
   copit add gh:owner/repo@v1.0.0/src/lib.rs --to vendor/
+
+  # Install a component from a configured registry, with its dependencies
+  copit add @my-kit/auth
+  copit add @my-kit/cache -y
 ")]
 pub struct AddCommand {
     /// Source(s) to add
@@ -108,6 +181,30 @@ pub struct AddCommand {
     /// Skip copying license files
     #[arg(long)]
     pub no_license: bool,
+
+    /// Accept the install plan without prompting
+    #[arg(short = 'y', long)]
+    pub yes: bool,
+
+    /// Show what would be installed and exit
+    #[arg(long)]
+    pub dry_run: bool,
+
+    /// Install only the named components, not what they require
+    #[arg(long)]
+    pub no_deps: bool,
+
+    /// Do not install package dependencies
+    #[arg(long)]
+    pub no_packages: bool,
+
+    /// Registry variant to select, overriding copit.toml (repeatable)
+    #[arg(long = "variant")]
+    pub variants: Vec<String>,
+
+    /// Also copy an optional file group, e.g. `--with tests` (repeatable)
+    #[arg(long = "with")]
+    pub with: Vec<String>,
 }
 
 #[derive(Parser)]

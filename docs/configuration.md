@@ -28,6 +28,27 @@ excludes = ["Cargo.toml", "src/lib.rs"]
 | `backup` | Default: save `.orig` backup for excluded modified files |
 | `licenses_dir` | Centralized directory for license files. When set, licenses are stored in `{licenses_dir}/{relative_path}/` (mirroring the target structure) instead of next to the source files |
 
+### `[registries.<name>]`
+
+A configured registry, keyed by the name used in `@name/component`. See
+[Registries](registry.md).
+
+| Field | Description |
+|---|---|
+| `source` | Where the registry lives: `github:owner/repo@ref`, or a local directory |
+| `target` | Target directory for this registry's components; falls back to `target` |
+| `variants` | Registry-defined variants to select, e.g. `["postgres"]` |
+| `target` | Dedicated directory for this registry's components; falls back to the project `target` |
+| `package_manager` | Manager to use; detected when unset. `"none"` never installs |
+
+```toml
+[registries.my-kit]
+source = "github:owner/repo@v1.0.0"
+target = "app/components"
+variants = ["postgres"]
+package_manager = "uv"
+```
+
 ### `[[sources]]`
 
 Each entry in the `sources` array represents one copied source:
@@ -45,6 +66,8 @@ Each entry in the `sources` array represents one copied source:
 | `skip` | Per-source override: skip existing files without prompting |
 | `backup` | Per-source override: save `.orig` backup for excluded modified files |
 | `no_license` | Skip copying license files for this source (set via `--no-license` on `add`) |
+| `component` | Registry component this path came from, as `registry:id`. Set when installed from a registry, and how copit knows which components are already present when resolving dependencies |
+| `variants` | Variants selected when this component was installed, so `update` reproduces the same file selection |
 
 Settings priority: CLI flags > per-source config > root-level config > default (`false`).
 

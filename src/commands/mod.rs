@@ -7,12 +7,16 @@
 //! - [`remove`] — Delete tracked files and their config entries
 //! - [`update`] — Re-fetch specific tracked sources
 //! - [`update_all`] — Re-fetch all tracked sources
+//! - [`registry`]: Configure and inspect component registries
+//! - [`registry_add`]: Install components from a registry, with their dependencies
 //! - [`common`] — Shared utilities (path handling, file writing)
 
 pub mod add;
 pub mod common;
 pub mod init;
 pub mod licenses_sync;
+pub mod registry;
+pub mod registry_add;
 pub mod remove;
 
 pub mod update;

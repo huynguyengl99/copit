@@ -1,6 +1,8 @@
 mod cli;
 mod commands;
 mod config;
+mod installers;
+mod registry;
 mod sources;
 
 use clap::Parser;
@@ -17,6 +19,12 @@ async fn main() -> anyhow::Result<()> {
         Command::Update(cmd) => commands::update::run(&cmd).await?,
         Command::UpdateAll(cmd) => commands::update_all::run(&cmd).await?,
         Command::LicensesSync(cmd) => commands::licenses_sync::run(&cmd)?,
+        Command::Registry(cmd) => match cmd {
+            cli::RegistryCommand::Add(cmd) => commands::registry::add(&cmd).await?,
+            cli::RegistryCommand::List => commands::registry::list()?,
+        },
+        Command::Search(cmd) => commands::registry::search(&cmd).await?,
+        Command::Info(cmd) => commands::registry::info(&cmd).await?,
     }
 
     Ok(())

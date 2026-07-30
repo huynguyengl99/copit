@@ -45,16 +45,170 @@ pub async fn run(cmd: &UpdateCommand) -> Result<()> {
         let settings =
             ResolvedSettings::resolve(cmd.overwrite, cmd.skip, cmd.backup, Some(entry), &cfg);
 
-        update_source(
-            entry,
-            cmd.version_ref.as_deref(),
-            settings,
-            frozen,
-            &cfg.target,
-            cfg.licenses_dir.as_deref(),
-        )
-        .await?;
+        update_entry(entry, cmd.version_ref.as_deref(), settings, frozen, &cfg).await?;
     }
+
+    Ok(())
+}
+
+/// Re-fetch one tracked entry, through its registry when it came from one.
+///
+/// Every caller must go through here: a component re-fetched as a plain path drags in
+/// the tests and metadata the index withheld, and for a local registry its recorded
+/// source does not even parse.
+pub async fn update_entry(
+    entry: &SourceEntry,
+    ref_override: Option<&str>,
+    settings: ResolvedSettings,
+    frozen: Option<bool>,
+    cfg: &config::CopitConfig,
+) -> Result<()> {
+    if entry.component.is_some() {
+        return update_component(entry, ref_override, settings, frozen, cfg).await;
+    }
+
+    update_source(
+        entry,
+        ref_override,
+        settings,
+        frozen,
+        &cfg.target,
+        cfg.licenses_dir.as_deref(),
+    )
+    .await
+}
+
+/// Re-fetch a component through its registry rather than as a plain path: the index
+/// decides which files are published, so a plain re-fetch would drag in the tests and
+/// metadata that installing excluded.
+async fn update_component(
+    entry: &SourceEntry,
+    ref_override: Option<&str>,
+    settings: ResolvedSettings,
+    frozen: Option<bool>,
+    cfg: &config::CopitConfig,
+) -> Result<()> {
+    let backlink = entry
+        .component
+        .as_deref()
+        .expect("caller checked the backlink is present");
+    let (registry_name, component_id) = backlink
+        .rsplit_once(':')
+        .ok_or_else(|| anyhow::anyhow!("Malformed component backlink '{backlink}'"))?;
+
+    let registry = cfg.registries.get(registry_name).ok_or_else(|| {
+        anyhow::anyhow!(
+            "'{}' came from registry '{registry_name}', which is no longer configured. \
+             Re-add it with `copit registry add {registry_name} <source>`.",
+            entry.path
+        )
+    })?;
+
+    // A new ref applies to the registry as a whole: the index and the component must
+    // come from the same commit, or the published file list may not match the files.
+    let registry_source = match ref_override {
+        Some(new_ref) => crate::registry::with_ref(&registry.source, new_ref)?,
+        None => registry.source.clone(),
+    };
+
+    let index = crate::registry::load_index(&registry_source).await?;
+    let component = index.component(component_id)?;
+
+    let fetched = crate::registry::fetch_component(&registry_source, &component.path).await?;
+    if fetched.files.is_empty() {
+        println!("No files found for {}", entry.path);
+        return Ok(());
+    }
+
+    // Variants recorded at install time win: `--variant` can override the registry's
+    // list, and reproducing that selection is the only way the same adapter stays
+    // current instead of going stale beside a freshly written one.
+    let variants = if entry.variants.is_empty() {
+        &registry.variants
+    } else {
+        &entry.variants
+    };
+
+    let published: std::collections::HashSet<String> =
+        component.files_for(variants).into_iter().collect();
+
+    // Optional files are refreshed only when the user opted into them, so a
+    // `--with tests` install stays current. Anything in neither set is never written:
+    // otherwise a file that merely happens to exist locally (a build artefact, or the
+    // user's own addition) would be silently overwritten from the registry.
+    let optional: std::collections::HashSet<String> =
+        component.optional.values().flatten().cloned().collect();
+
+    let track_path = PathBuf::from(&entry.path);
+    let mut updated = 0;
+
+    for (within, contents) in &fetched.files {
+        let dest = track_path.join(within);
+        common::validate_no_path_traversal(&dest, &entry.path)?;
+
+        let is_opted_in = optional.contains(within) && dest.exists();
+        if !published.contains(within) && !is_opted_in {
+            continue;
+        }
+
+        if common::handle_excludes(
+            &dest,
+            &track_path,
+            &entry.excludes,
+            contents,
+            settings.backup,
+        )? {
+            continue;
+        }
+
+        if !should_write_existing(&dest, settings.overwrite, settings.skip)? {
+            continue;
+        }
+
+        common::write_file(&dest, contents)?;
+        updated += 1;
+    }
+
+    println!(
+        "Updated {} ({} file{}) from @{registry_name}/{component_id} {}",
+        entry.path,
+        updated,
+        if updated == 1 { "" } else { "s" },
+        component.version
+    );
+
+    if entry.no_license != Some(true) {
+        common::write_license_files(
+            &fetched.license_files,
+            &track_path,
+            &entry.path,
+            cfg.licenses_dir.as_deref(),
+        )?;
+    }
+
+    let new_source = crate::registry::component_source(&registry_source, &component.path);
+    let (version_ref, commit) = match crate::sources::parse_source(&new_source) {
+        Ok(Source::GitHub {
+            owner,
+            repo,
+            version,
+            ..
+        }) => (
+            Some(version.clone()),
+            sources::github::resolve_commit_sha(&owner, &repo, &version).await,
+        ),
+        _ => (None, None),
+    };
+
+    config::add_source_entry(
+        &entry.path,
+        &new_source,
+        version_ref.as_deref(),
+        commit.as_deref(),
+        frozen,
+        entry.no_license,
+    )?;
+    config::set_source_component(&entry.path, backlink, variants)?;
 
     Ok(())
 }

@@ -35,10 +35,39 @@ pub async fn run(cmd: &AddCommand) -> Result<()> {
 
     let settings = ResolvedSettings::resolve(cmd.overwrite, cmd.skip, cmd.backup, None, &cfg);
 
-    for source_str in &cmd.sources {
-        let source = sources::parse_source(source_str)?;
+    // Registry-only flags are declared on the shared AddCommand, so clap accepts them
+    // everywhere. Reject them rather than let them look honoured on a plain source.
+    if registry_sources_absent(&cmd.sources) {
+        for (flag, used) in [
+            ("--no-deps", cmd.no_deps),
+            ("--no-packages", cmd.no_packages),
+            ("-y/--yes", cmd.yes),
+        ] {
+            if used {
+                bail!("{flag} only applies to registry components (@registry/component)");
+            }
+        }
+        if !cmd.variants.is_empty() {
+            bail!("--variant only applies to registry components (@registry/component)");
+        }
+        if !cmd.with.is_empty() {
+            bail!("--with only applies to registry components (@registry/component)");
+        }
+    }
+
+    // Registry sources resolve to several concrete sources plus package installs, so
+    // they are handled together: one plan, one confirmation, one dependency install.
+    let (registry_sources, plain_sources): (Vec<_>, Vec<_>) = cmd
+        .sources
+        .iter()
+        .map(|raw| sources::parse_source(raw))
+        .collect::<Result<Vec<_>>>()?
+        .into_iter()
+        .partition(|source| matches!(source, Source::Registry { .. }));
+
+    for source in &plain_sources {
         add_source(
-            &source,
+            source,
             base_target,
             cmd,
             &settings,
@@ -47,7 +76,16 @@ pub async fn run(cmd: &AddCommand) -> Result<()> {
         .await?;
     }
 
+    if !registry_sources.is_empty() {
+        super::registry_add::run(&registry_sources, cmd, &settings, &cfg).await?;
+    }
+
     Ok(())
+}
+
+/// Whether the user asked for no registry components at all.
+fn registry_sources_absent(sources: &[String]) -> bool {
+    !sources.iter().any(|source| source.starts_with('@'))
 }
 
 async fn add_source(
@@ -110,6 +148,12 @@ async fn add_source(
         // Validate no path traversal
         common::validate_no_path_traversal(&dest, base_target)?;
 
+        if cmd.dry_run {
+            println!("Would copy: {}", portable_display(&dest));
+            any_written = true;
+            continue;
+        }
+
         if !should_write_existing(&dest, settings.overwrite, settings.skip)? {
             continue;
         }
@@ -117,6 +161,11 @@ async fn add_source(
         common::write_file(&dest, contents)?;
         println!("Copied: {}", portable_display(&dest));
         any_written = true;
+    }
+
+    if cmd.dry_run {
+        println!("Dry run: nothing was written.");
+        return Ok(());
     }
 
     if !any_written {
@@ -190,5 +239,11 @@ pub async fn fetch_source(source: &Source) -> Result<FetchResult> {
                 license_files: vec![],
             })
         }
+        // Registry sources are expanded into concrete per-component sources before
+        // fetching; see `commands::registry_add`.
+        Source::Registry {
+            registry,
+            component,
+        } => bail!("Registry source '@{registry}/{component}' must be resolved before fetching"),
     }
 }

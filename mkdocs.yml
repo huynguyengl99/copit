@@ -50,6 +50,7 @@ nav:
   - Home: index.md
   - Getting Started: getting-started.md
   - Commands: commands.md
+  - Registries: registry.md
   - Configuration: configuration.md
   - Contributing: contributing.md
   - Changelog: changelog.md

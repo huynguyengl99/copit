@@ -68,6 +68,35 @@ pub fn compute_dest(
     }
 }
 
+/// Validate that a target directory stays inside the project.
+///
+/// [`validate_no_path_traversal`] compares a destination against its own base, so it
+/// cannot judge the base itself. An absolute or escaping target would pass that check
+/// while writing anywhere on disk.
+pub fn validate_install_target(target: &str) -> Result<()> {
+    let path = Path::new(target);
+
+    if path.is_absolute() || matches!(path.components().next(), Some(Component::Prefix(_))) {
+        bail!("Target directory must be relative to the project: {target}");
+    }
+
+    let mut depth: i32 = 0;
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                depth -= 1;
+                if depth < 0 {
+                    bail!("Target directory escapes the project: {target}");
+                }
+            }
+            _ => depth += 1,
+        }
+    }
+
+    Ok(())
+}
+
 /// Validate that the destination path does not escape the base target directory
 /// via path traversal (e.g. `../`).
 pub fn validate_no_path_traversal(dest: &Path, base_target: &str) -> Result<()> {
@@ -378,5 +407,17 @@ mod tests {
         // When track_path doesn't start with target, uses full path as relative
         let result = license_dir_for(Path::new("other/lib.rs"), "vendor", Some("licenses"));
         assert_eq!(result, PathBuf::from("licenses/other/lib"));
+    }
+
+    #[test]
+    fn an_install_target_must_stay_inside_the_project() {
+        // validate_no_path_traversal compares a dest against its own base, so an
+        // absolute base passes it while writing anywhere on disk.
+        assert!(validate_install_target("vendor").is_ok());
+        assert!(validate_install_target("app/components").is_ok());
+        assert!(validate_install_target("app/../components").is_ok());
+
+        assert!(validate_install_target("/etc/cron.d").is_err());
+        assert!(validate_install_target("../../shared").is_err());
     }
 }

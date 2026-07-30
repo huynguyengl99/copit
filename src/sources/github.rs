@@ -6,6 +6,8 @@
 //! repositories and higher rate limits.
 
 use anyhow::{Context, Result};
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use super::zip::{extract_from_bytes, ExtractedFiles};
 
@@ -57,6 +59,45 @@ fn github_client() -> Result<reqwest::Client> {
         .context("Failed to build HTTP client")
 }
 
+/// Archives already downloaded during this run, keyed by URL.
+///
+/// One repository archive serves the registry index and every component in it, so
+/// without this a five-component install downloads the same zip six times. Scoped to
+/// the process, so each command still sees fresh data.
+static ARCHIVE_CACHE: std::sync::OnceLock<tokio::sync::Mutex<HashMap<String, Arc<Vec<u8>>>>> =
+    std::sync::OnceLock::new();
+
+async fn archive_bytes(url: &str, owner: &str, repo: &str, version: &str) -> Result<Arc<Vec<u8>>> {
+    let cache = ARCHIVE_CACHE.get_or_init(|| tokio::sync::Mutex::new(HashMap::new()));
+    let mut cache = cache.lock().await;
+
+    if let Some(bytes) = cache.get(url) {
+        return Ok(bytes.clone());
+    }
+
+    println!("Downloading {url}...");
+    let client = github_client()?;
+    let response = client.get(url).send().await.with_context(|| {
+        format!("Failed to download GitHub archive for {owner}/{repo}@{version}")
+    })?;
+
+    let status = response.status();
+    if !status.is_success() {
+        anyhow::bail!("HTTP {status} when fetching {url}");
+    }
+
+    let bytes = Arc::new(
+        response
+            .bytes()
+            .await
+            .with_context(|| format!("Failed to read response body from {url}"))?
+            .to_vec(),
+    );
+
+    cache.insert(url.to_string(), Arc::clone(&bytes));
+    Ok(bytes)
+}
+
 /// Fetch files from a GitHub repository by downloading the ZIP archive.
 pub async fn fetch_github(
     owner: &str,
@@ -75,22 +116,7 @@ async fn fetch_github_from(
     path: &str,
 ) -> Result<GitHubFetchResult> {
     let url = format!("{base_url}/{owner}/{repo}/archive/{version}.zip");
-
-    println!("Downloading {url}...");
-    let client = github_client()?;
-    let response = client.get(&url).send().await.with_context(|| {
-        format!("Failed to download GitHub archive for {owner}/{repo}@{version}")
-    })?;
-
-    let status = response.status();
-    if !status.is_success() {
-        anyhow::bail!("HTTP {status} when fetching {url}");
-    }
-
-    let bytes = response
-        .bytes()
-        .await
-        .with_context(|| format!("Failed to read response body from {url}"))?;
+    let bytes = archive_bytes(&url, owner, repo, version).await?;
 
     // GitHub archives have a top-level directory like `repo-version/`
     // We need to find this prefix to strip it
@@ -117,7 +143,23 @@ async fn fetch_github_from(
 /// Resolve the commit SHA for a given version ref (branch/tag/sha) via the GitHub API.
 /// Returns None if the API call fails (e.g. rate limit, network error).
 pub async fn resolve_commit_sha(owner: &str, repo: &str, version: &str) -> Option<String> {
-    resolve_commit_sha_from(GITHUB_API_BASE, owner, repo, version).await
+    // Every component of a registry resolves the same owner/repo/ref, and the answer
+    // cannot change mid-command. Without this an N-component install spends N of the
+    // 60/hour unauthenticated budget to learn one SHA.
+    static SHA_CACHE: std::sync::OnceLock<tokio::sync::Mutex<HashMap<String, Option<String>>>> =
+        std::sync::OnceLock::new();
+
+    let key = format!("{owner}/{repo}@{version}");
+    let cache = SHA_CACHE.get_or_init(|| tokio::sync::Mutex::new(HashMap::new()));
+    let mut cache = cache.lock().await;
+
+    if let Some(sha) = cache.get(&key) {
+        return sha.clone();
+    }
+
+    let sha = resolve_commit_sha_from(GITHUB_API_BASE, owner, repo, version).await;
+    cache.insert(key, sha.clone());
+    sha
 }
 
 async fn resolve_commit_sha_from(
@@ -210,6 +252,36 @@ mod tests {
         let data = zip.finish().unwrap().into_inner();
         let prefix = find_archive_prefix(&data).unwrap();
         assert_eq!(prefix, "single-file");
+    }
+
+    #[tokio::test]
+    async fn one_repository_archive_is_downloaded_once_per_run() {
+        // A registry install fetches the index and then every component from the same
+        // archive. Without the cache that was one full repo download each time.
+        let mut server = mockito::Server::new_async().await;
+        let zip = create_github_zip(
+            "repo-v1/",
+            &[
+                ("registry.json", b"{}"),
+                ("components/a/mod.rs", b"a"),
+                ("components/b/mod.rs", b"b"),
+            ],
+        );
+        let archive = server
+            .mock("GET", "/owner/repo/archive/v1.zip")
+            .with_status(200)
+            .with_body(zip)
+            .expect(1)
+            .create_async()
+            .await;
+
+        for path in ["registry.json", "components/a", "components/b"] {
+            fetch_github_from(&server.url(), "owner", "repo", "v1", path)
+                .await
+                .unwrap();
+        }
+
+        archive.assert_async().await;
     }
 
     #[tokio::test]

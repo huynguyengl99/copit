@@ -34,6 +34,12 @@ pub enum Source {
         url: String,
         inner_path: Option<String>,
     },
+    /// A component from a configured registry, written `@registry/component` and
+    /// resolved against `[registries.<name>]` in `copit.toml`.
+    Registry {
+        registry: String,
+        component: String,
+    },
 }
 
 impl Source {
@@ -51,6 +57,10 @@ impl Source {
                 Some(p) => format!("{url}#{p}"),
                 None => url.clone(),
             },
+            Source::Registry {
+                registry,
+                component,
+            } => format!("@{registry}/{component}"),
         }
     }
 
@@ -82,6 +92,7 @@ impl Source {
                 .as_deref()
                 .unwrap_or_else(|| url.rsplit('/').next().unwrap_or("archive"))
                 .to_string(),
+            Source::Registry { component, .. } => component.clone(),
         }
     }
 }
@@ -103,6 +114,10 @@ impl Source {
 /// Returns an error if the input doesn't match any known format or has
 /// missing/empty components (e.g., empty owner, repo, or version).
 pub fn parse_source(input: &str) -> Result<Source> {
+    if let Some(rest) = input.strip_prefix('@') {
+        return parse_registry_source(rest);
+    }
+
     if let Some(rest) = input
         .strip_prefix("github:")
         .or_else(|| input.strip_prefix("gh:"))
@@ -137,6 +152,35 @@ pub fn parse_source(input: &str) -> Result<Source> {
     }
 
     bail!("Unknown source format: {input}\nExpected: github:owner/repo@version/path (or gh:), https://..., or url.zip#path")
+}
+
+/// Parse `registry/component` (the `@` already stripped).
+fn parse_registry_source(input: &str) -> Result<Source> {
+    let (registry, component) = input.split_once('/').ok_or_else(|| {
+        anyhow::anyhow!(
+            "Invalid registry source '@{input}'. Expected @registry/component, \
+             e.g. @my-kit/auth"
+        )
+    })?;
+
+    if registry.is_empty() || component.is_empty() {
+        bail!(
+            "Invalid registry source '@{input}'. Expected @registry/component, \
+             e.g. @my-kit/auth"
+        );
+    }
+
+    if component.contains('/') {
+        bail!(
+            "Invalid component '{component}' in '@{input}'. Component ids do not \
+             contain '/'"
+        );
+    }
+
+    Ok(Source::Registry {
+        registry: registry.to_string(),
+        component: component.to_string(),
+    })
 }
 
 fn parse_github_source(input: &str) -> Result<Source> {

@@ -49,6 +49,8 @@
 //! ## Architecture
 //!
 //! - [`sources`] — Source parsing, fetching (GitHub, HTTP, ZIP)
+//! - [`registry`]: Registry index model and component dependency resolution
+//! - [`installers`]: Package managers copit can add dependencies with
 //! - [`config`] — `copit.toml` loading, saving, and manipulation
 //! - [`commands`] — CLI command implementations (init, add, remove, update, update-all)
 //! - [`cli`] — Clap argument definitions
@@ -56,4 +58,6 @@
 pub mod cli;
 pub mod commands;
 pub mod config;
+pub mod installers;
+pub mod registry;
 pub mod sources;

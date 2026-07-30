@@ -1,6 +1,7 @@
 mod add;
 mod init;
 mod licenses_sync;
+mod registry;
 mod remove;
 mod update;
 mod update_all;

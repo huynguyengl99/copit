@@ -13,6 +13,11 @@ This document contains the help content for the `copit` command-line program.
 * [`copit update`↴](#copit-update)
 * [`copit update-all`↴](#copit-update-all)
 * [`copit licenses-sync`↴](#copit-licenses-sync)
+* [`copit registry`↴](#copit-registry)
+* [`copit registry add`↴](#copit-registry-add)
+* [`copit registry list`↴](#copit-registry-list)
+* [`copit search`↴](#copit-search)
+* [`copit info`↴](#copit-info)
 
 ## `copit`
 
@@ -28,6 +33,9 @@ Copy reusable source code into your project
 * `update` — Re-fetch specific tracked source(s) by path
 * `update-all` — Re-fetch all tracked sources
 * `licenses-sync` — Reorganize license files (centralize or restore side-by-side)
+* `registry` — Configure and inspect component registries
+* `search` — Search a registry's components
+* `info` — Show what a component installs
 
 
 
@@ -64,6 +72,10 @@ Examples:
   # Copy to a specific directory
   copit add gh:owner/repo@v1.0.0/src/lib.rs --to vendor/
 
+  # Install a component from a configured registry, with its dependencies
+  copit add @my-kit/auth
+  copit add @my-kit/cache -y
+
 
 ###### **Arguments:**
 
@@ -79,6 +91,12 @@ Examples:
 * `--backup` — Save .orig copy of new version for excluded modified files
 * `--freeze` — Pin this source so update and update-all skip it
 * `--no-license` — Skip copying license files
+* `-y`, `--yes` — Accept the install plan without prompting
+* `--dry-run` — Show what would be installed and exit
+* `--no-deps` — Install only the named components, not what they require
+* `--no-packages` — Do not install package dependencies
+* `--variant <VARIANTS>` — Registry variant to select, overriding copit.toml (repeatable)
+* `--with <WITH>` — Also copy an optional file group, e.g. `--with tests` (repeatable)
 
 
 
@@ -186,6 +204,89 @@ Examples:
 * `--no-dir` — Move licenses back to side-by-side (remove licenses_dir)
 * `-l`, `--licenses-dir <LICENSES_DIR>` — Move licenses into a centralized directory
 * `--dry-run` — Preview what would be moved without making changes
+
+
+
+## `copit registry`
+
+Configure and inspect component registries
+
+**Usage:** `copit registry <COMMAND>`
+
+###### **Subcommands:**
+
+* `add` — Configure a registry so its components can be installed by id
+* `list` — List configured registries
+
+
+
+## `copit registry add`
+
+Configure a registry so its components can be installed by id
+
+**Usage:** `copit registry add [OPTIONS] <NAME> <SOURCE>`
+
+Examples:
+  # Configure a registry, then install by id
+  copit registry add my-kit github:owner/repo@v1.0.0 --to app/components --variant postgres
+  copit add @my-kit/auth
+
+  # Develop a registry locally, before publishing it
+  copit registry add my-kit ../my-registry
+
+
+###### **Arguments:**
+
+* `<NAME>` — Name used in `@name/component`
+* `<SOURCE>` — Where the registry lives: `github:owner/repo@ref`, or a local directory
+
+###### **Options:**
+
+* `--to <TO>` — Target directory for this registry's components
+* `--variant <VARIANTS>` — Registry-defined variant to select (repeatable)
+* `--package-manager <PACKAGE_MANAGER>` — Package manager to use; detected when omitted. Use `none` to never install
+
+
+
+## `copit registry list`
+
+List configured registries
+
+**Usage:** `copit registry list`
+
+
+
+## `copit search`
+
+Search a registry's components
+
+**Usage:** `copit search <REGISTRY> [QUERY]`
+
+Examples:
+  copit search @my-kit cache
+  copit search @my-kit          # list everything
+
+
+###### **Arguments:**
+
+* `<REGISTRY>` — Registry to search, as `@name`
+* `<QUERY>` — Text matched against ids, titles, descriptions and tags
+
+
+
+## `copit info`
+
+Show what a component installs
+
+**Usage:** `copit info <COMPONENT>`
+
+Examples:
+  copit info @my-kit/auth
+
+
+###### **Arguments:**
+
+* `<COMPONENT>` — Component to describe, as `@registry/component`
 
 
 

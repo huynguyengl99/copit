@@ -19,14 +19,15 @@
 //! excludes = ["Cargo.toml"]
 //! ```
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 
 const CONFIG_FILE: &str = "copit.toml";
 
 /// A single tracked source entry (one `[[sources]]` table).
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone)]
 pub struct SourceEntry {
     /// Local path where the source was copied to (e.g., `"vendor/lib.rs"`).
     pub path: String,
@@ -58,6 +59,31 @@ pub struct SourceEntry {
     /// Skip copying license files for this source.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub no_license: Option<bool>,
+    /// Registry component this path came from, as `registry:component`. Set on install
+    /// so dependency resolution can tell which components are already present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub component: Option<String>,
+    /// Variants selected when this component was installed, so `update` reproduces the
+    /// same file selection even when `--variant` overrode the registry's list.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub variants: Vec<String>,
+}
+
+/// A configured registry: where its index lives and how to install from it.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct RegistryConfig {
+    /// Source the registry is fetched from, e.g. `github:owner/repo@v0.1.0`, or a
+    /// local path while developing a registry.
+    pub source: String,
+    /// Target directory for this registry's components; falls back to `target`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<String>,
+    /// Registry-defined variants to select, e.g. `["postgres"]`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub variants: Vec<String>,
+    /// Package manager to use; detected when unset. `"none"` disables installing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub package_manager: Option<String>,
 }
 
 /// Top-level `copit.toml` configuration.
@@ -80,6 +106,9 @@ pub struct CopitConfig {
     /// List of tracked source entries.
     #[serde(default, rename = "sources")]
     pub sources: Vec<SourceEntry>,
+    /// Configured registries, keyed by the name used in `@name/component`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub registries: BTreeMap<String, RegistryConfig>,
 }
 
 impl Default for CopitConfig {
@@ -91,6 +120,7 @@ impl Default for CopitConfig {
             backup: None,
             licenses_dir: None,
             sources: Vec::new(),
+            registries: BTreeMap::new(),
         }
     }
 }
@@ -236,6 +266,16 @@ pub fn save_config_to(config: &CopitConfig, path: &Path) -> Result<()> {
             if let Some(no_license) = entry.no_license {
                 table["no_license"] = toml_edit::value(no_license);
             }
+            if let Some(ref component) = entry.component {
+                table["component"] = toml_edit::value(component);
+            }
+            if !entry.variants.is_empty() {
+                let mut arr = toml_edit::Array::new();
+                for variant in &entry.variants {
+                    arr.push(variant.as_str());
+                }
+                table["variants"] = toml_edit::value(arr);
+            }
             table["copied_at"] = toml_edit::value(&entry.copied_at);
             if !entry.excludes.is_empty() {
                 let mut arr = toml_edit::Array::new();
@@ -247,6 +287,30 @@ pub fn save_config_to(config: &CopitConfig, path: &Path) -> Result<()> {
             sources.push(table);
         }
         doc["sources"] = toml_edit::Item::ArrayOfTables(sources);
+    }
+
+    if !config.registries.is_empty() {
+        let mut registries = toml_edit::Table::new();
+        registries.set_implicit(true);
+        for (name, registry) in &config.registries {
+            let mut table = toml_edit::Table::new();
+            table["source"] = toml_edit::value(&registry.source);
+            if let Some(ref target) = registry.target {
+                table["target"] = toml_edit::value(target);
+            }
+            if !registry.variants.is_empty() {
+                let mut variants = toml_edit::Array::new();
+                for variant in &registry.variants {
+                    variants.push(variant.as_str());
+                }
+                table["variants"] = toml_edit::value(variants);
+            }
+            if let Some(ref manager) = registry.package_manager {
+                table["package_manager"] = toml_edit::value(manager);
+            }
+            registries.insert(name, toml_edit::Item::Table(table));
+        }
+        doc["registries"] = toml_edit::Item::Table(registries);
     }
 
     std::fs::write(path, doc.to_string()).context("Failed to write copit.toml")?;
@@ -351,6 +415,112 @@ pub fn add_source_entry_to(
         table["copied_at"] = toml_edit::value(&now);
         sources.push(table);
     }
+
+    std::fs::write(config_file, doc.to_string()).context("Failed to write copit.toml")?;
+    Ok(())
+}
+
+/// Registry ids already installed, read from the `component` backlinks, so dependency
+/// resolution can skip what is already on disk.
+pub fn installed_components(config: &CopitConfig, registry: &str) -> HashSet<String> {
+    let prefix = format!("{registry}:");
+    config
+        .sources
+        .iter()
+        .filter_map(|entry| entry.component.as_deref())
+        .filter_map(|component| component.strip_prefix(&prefix))
+        .map(str::to_string)
+        .collect()
+}
+
+/// Record which registry component a tracked path came from, and which variants were
+/// selected when it was installed.
+///
+/// The variants are stored per entry because `--variant` can override the registry's
+/// configured list, and `update` has to reproduce the same file selection.
+pub fn set_source_component(path: &str, component: &str, variants: &[String]) -> Result<()> {
+    set_source_component_in(&config_path(), path, component, variants)
+}
+
+pub fn set_source_component_in(
+    config_file: &Path,
+    path: &str,
+    component: &str,
+    variants: &[String],
+) -> Result<()> {
+    let content = std::fs::read_to_string(config_file).context("Failed to read copit.toml")?;
+    let mut doc = content
+        .parse::<toml_edit::DocumentMut>()
+        .context("Failed to parse copit.toml for editing")?;
+
+    let sources = doc
+        .get_mut("sources")
+        .and_then(|item| item.as_array_of_tables_mut())
+        .context("No tracked sources in copit.toml")?;
+
+    let mut found = false;
+    for table in sources.iter_mut() {
+        if table.get("path").and_then(|v| v.as_str()) == Some(path) {
+            table["component"] = toml_edit::value(component);
+            if variants.is_empty() {
+                table.remove("variants");
+            } else {
+                let mut array = toml_edit::Array::new();
+                for variant in variants {
+                    array.push(variant.as_str());
+                }
+                table["variants"] = toml_edit::value(array);
+            }
+            found = true;
+            break;
+        }
+    }
+
+    if !found {
+        bail!("No tracked source at {path} to record component '{component}' against");
+    }
+
+    std::fs::write(config_file, doc.to_string()).context("Failed to write copit.toml")?;
+    Ok(())
+}
+
+/// Add or replace a configured registry, preserving everything else.
+pub fn upsert_registry(name: &str, registry: &RegistryConfig) -> Result<()> {
+    upsert_registry_in(&config_path(), name, registry)
+}
+
+pub fn upsert_registry_in(config_file: &Path, name: &str, registry: &RegistryConfig) -> Result<()> {
+    let content = std::fs::read_to_string(config_file).context("Failed to read copit.toml")?;
+    let mut doc = content
+        .parse::<toml_edit::DocumentMut>()
+        .context("Failed to parse copit.toml for editing")?;
+
+    if doc.get("registries").is_none() {
+        let mut registries = toml_edit::Table::new();
+        registries.set_implicit(true);
+        doc["registries"] = toml_edit::Item::Table(registries);
+    }
+
+    let registries = doc["registries"]
+        .as_table_mut()
+        .context("registries should be a table")?;
+
+    let mut table = toml_edit::Table::new();
+    table["source"] = toml_edit::value(&registry.source);
+    if let Some(target) = &registry.target {
+        table["target"] = toml_edit::value(target);
+    }
+    if !registry.variants.is_empty() {
+        let mut variants = toml_edit::Array::new();
+        for variant in &registry.variants {
+            variants.push(variant.as_str());
+        }
+        table["variants"] = toml_edit::value(variants);
+    }
+    if let Some(manager) = &registry.package_manager {
+        table["package_manager"] = toml_edit::value(manager);
+    }
+    registries.insert(name, toml_edit::Item::Table(table));
 
     std::fs::write(config_file, doc.to_string()).context("Failed to write copit.toml")?;
     Ok(())
@@ -712,6 +882,77 @@ copied_at = "2026-03-07T00:00:00Z"
     }
 
     #[test]
+    fn saving_round_trips_registries_and_component_backlinks() {
+        // save_config_to builds the document field by field, so a field added to the
+        // struct does not persist until it is written here too. This catches that.
+        let dir = TempDir::new().unwrap();
+        let config_file = config_path_in(dir.path());
+
+        let mut registries = BTreeMap::new();
+        registries.insert(
+            "my-kit".to_string(),
+            RegistryConfig {
+                source: "github:o/r@v1".to_string(),
+                target: Some("app/components".to_string()),
+                variants: vec!["postgres".to_string()],
+                package_manager: Some("uv".to_string()),
+            },
+        );
+
+        let config = CopitConfig {
+            target: "vendor".to_string(),
+            sources: vec![SourceEntry {
+                path: "app/components/auth".to_string(),
+                source: "github:o/r@v1/components/auth".to_string(),
+                copied_at: "2026-01-01T00:00:00Z".to_string(),
+                component: Some("my-kit:auth".to_string()),
+                ..Default::default()
+            }],
+            registries,
+            ..Default::default()
+        };
+        save_config_to(&config, &config_file).unwrap();
+
+        let loaded = load_config_from(&config_file).unwrap();
+
+        let registry = loaded.registries.get("my-kit").expect("registry lost");
+        assert_eq!(registry.source, "github:o/r@v1");
+        assert_eq!(registry.target.as_deref(), Some("app/components"));
+        assert_eq!(registry.variants, vec!["postgres"]);
+        assert_eq!(registry.package_manager.as_deref(), Some("uv"));
+        assert_eq!(loaded.sources[0].component.as_deref(), Some("my-kit:auth"));
+    }
+
+    #[test]
+    fn installed_components_reads_backlinks_for_one_registry() {
+        let config = CopitConfig {
+            target: "vendor".to_string(),
+            sources: vec![
+                SourceEntry {
+                    path: "a".to_string(),
+                    component: Some("my-kit:logger".to_string()),
+                    ..Default::default()
+                },
+                SourceEntry {
+                    path: "b".to_string(),
+                    component: Some("other-kit:logger".to_string()),
+                    ..Default::default()
+                },
+                SourceEntry {
+                    path: "c".to_string(),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+
+        let installed = installed_components(&config, "my-kit");
+
+        assert_eq!(installed.len(), 1);
+        assert!(installed.contains("logger"));
+    }
+
+    #[test]
     fn save_then_add_preserves_target() {
         let dir = TempDir::new().unwrap();
         let config_file = config_path_in(dir.path());
@@ -723,6 +964,7 @@ copied_at = "2026-03-07T00:00:00Z"
             backup: None,
             licenses_dir: None,
             sources: vec![],
+            ..Default::default()
         };
         save_config_to(&config, &config_file).unwrap();
         add_source_entry_to(
@@ -764,7 +1006,9 @@ copied_at = "2026-03-07T00:00:00Z"
                 skip: None,
                 backup: None,
                 no_license: None,
+                ..Default::default()
             }],
+            ..Default::default()
         };
         save_config_to(&config, &config_file).unwrap();
 
@@ -907,6 +1151,7 @@ copied_at = "2026-03-07T00:00:00Z"
             backup,
             licenses_dir: None,
             sources: vec![],
+            ..Default::default()
         }
     }
 
@@ -927,6 +1172,7 @@ copied_at = "2026-03-07T00:00:00Z"
             skip,
             backup,
             no_license: None,
+            ..Default::default()
         }
     }
 

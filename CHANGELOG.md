@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.1] - 2026-07-30
+
+### Bug Fixes
+
+- Reject install targets outside the project on Windows ([3bcd11c](https://github.com/huynguyengl99/copit/commit/3bcd11c855436bdf5c78951cb77bb90f8ec06276))
+
 ## [0.4.0] - 2026-07-30
 
 ### Features
@@ -11,6 +17,7 @@ All notable changes to this project will be documented in this file.
 ### Miscellaneous
 
 - Add rust-analyzer to the toolchain components ([d06732d](https://github.com/huynguyengl99/copit/commit/d06732d07cf13534f3d9f37461c0043e7762e278))
+- Release v0.4.0 ([11927e2](https://github.com/huynguyengl99/copit/commit/11927e2f304111dd4f8c4f75a9a7cdbdb53fc4fe))
 
 ## [0.3.0] - 2026-03-11
 

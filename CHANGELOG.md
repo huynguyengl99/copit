@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2026-07-30
+
+### Features
+
+- Add component registries with dependency-aware install ([f1577cc](https://github.com/huynguyengl99/copit/commit/f1577cc1b93243d08885c9616951f115d189f074))
+
+### Miscellaneous
+
+- Add rust-analyzer to the toolchain components ([d06732d](https://github.com/huynguyengl99/copit/commit/d06732d07cf13534f3d9f37461c0043e7762e278))
+
 ## [0.3.0] - 2026-03-11
 
 ### CI
@@ -19,6 +29,10 @@ All notable changes to this project will be documented in this file.
 - Flatten [project] config into root-level fields ([80774bb](https://github.com/huynguyengl99/copit/commit/80774bb0a201b170e0b78fcfd41bb14acb61df75))
 - Implement license track ([3829505](https://github.com/huynguyengl99/copit/commit/3829505d8e77170912b9f7ebf4491ebb78e3ee78))
 - Add licenses-sync command and refactor license path layout ([e715c17](https://github.com/huynguyengl99/copit/commit/e715c177a074278b8556a7230ff6b2d75d543a6f))
+
+### Miscellaneous
+
+- Release v0.3.0 ([f10eb3a](https://github.com/huynguyengl99/copit/commit/f10eb3a18902ff1fee3cd5d2709ff69811d6975f))
 
 ## [0.2.2] - 2026-03-08
 

@@ -56,7 +56,7 @@ pub async fn open(name: &str) -> Result<(RegistryConfig, RegistryIndex)> {
         }
     })?;
 
-    let index = load_index(&registry.source).await?;
+    let index = load_index(&registry.source, registry.index.as_deref()).await?;
     Ok((registry, index))
 }
 
@@ -92,7 +92,7 @@ pub async fn add(cmd: &RegistryAddCommand) -> Result<()> {
 
     // Load the index now rather than at first use, so a typo in the source is caught
     // here instead of surfacing later as a failed install.
-    let index = load_index(&cmd.source)
+    let index = load_index(&cmd.source, cmd.index.as_deref())
         .await
         .with_context(|| format!("Could not read a registry at '{}'", cmd.source))?;
 
@@ -125,6 +125,7 @@ pub async fn add(cmd: &RegistryAddCommand) -> Result<()> {
 
     let entry = RegistryConfig {
         source: cmd.source.clone(),
+        index: cmd.index.clone(),
         target,
         variants: cmd.variants.clone(),
         package_manager: cmd.package_manager.clone(),

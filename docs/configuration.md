@@ -36,9 +36,9 @@ A configured registry, keyed by the name used in `@name/component`. See
 | Field | Description |
 |---|---|
 | `source` | Where the registry lives: `github:owner/repo@ref`, or a local directory |
-| `target` | Target directory for this registry's components; falls back to `target` |
-| `variants` | Registry-defined variants to select, e.g. `["postgres"]` |
+| `index` | Index filename within the source; defaults to `copit-registry.json` |
 | `target` | Dedicated directory for this registry's components; falls back to the project `target` |
+| `variants` | Registry-defined variants to select, e.g. `["postgres"]` |
 | `package_manager` | Manager to use; detected when unset. `"none"` never installs |
 
 ```toml

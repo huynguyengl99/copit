@@ -243,6 +243,7 @@ Examples:
 ###### **Options:**
 
 * `--to <TO>` — Target directory for this registry's components
+* `--index <INDEX>` — Index filename within the source; defaults to `copit-registry.json`
 * `--variant <VARIANTS>` — Registry-defined variant to select (repeatable)
 * `--package-manager <PACKAGE_MANAGER>` — Package manager to use; detected when omitted. Use `none` to never install
 

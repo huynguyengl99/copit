@@ -144,7 +144,7 @@ whichever manager the project already uses: uv, poetry, pdm, pip, pnpm, yarn, np
 cargo, chosen by the registry's declared ecosystem.
 
 See [Registries](https://huynguyengl99.github.io/copit/registry/) for the index format,
-`registry.json`, and how to publish one.
+`copit-registry.json`, and how to publish one.
 
 ### `copit update <path>...`
 

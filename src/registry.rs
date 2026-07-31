@@ -7,7 +7,7 @@
 //! copit add @my-kit/auth
 //! ```
 //!
-//! The registry publishes a generated `registry.json` describing every component: where
+//! The registry publishes a generated `copit-registry.json` describing every component: where
 //! it lives, which other components it requires, and which packages it needs. copit
 //! fetches that one file, resolves the graph, and then reuses the ordinary fetch/copy
 //! machinery for each component. The registry's declared `ecosystem` picks the package
@@ -66,6 +66,14 @@ pub struct Component {
     pub dependencies: Vec<String>,
     #[serde(default)]
     pub variants: BTreeMap<String, Variant>,
+    /// Variants this component requires. Empty means it installs anywhere.
+    ///
+    /// Distinct from `variants`, which only adds files and packages: a component listed
+    /// here refuses to install unless one of these is selected. Registries use it for
+    /// components that cannot be ported, such as one carrying a framework's models and
+    /// migrations.
+    #[serde(default)]
+    pub only_variants: Vec<String>,
     /// Files the registry expects to be copied, excludes already applied.
     #[serde(default)]
     pub files: Vec<String>,
@@ -76,6 +84,15 @@ pub struct Component {
 }
 
 impl Component {
+    /// Whether this component can be installed under `selected`.
+    pub fn supports(&self, selected: &[String]) -> bool {
+        self.only_variants.is_empty()
+            || self
+                .only_variants
+                .iter()
+                .any(|required| selected.contains(required))
+    }
+
     /// Packages needed for this component under the selected variants.
     pub fn packages_for(&self, variants: &[String]) -> Vec<String> {
         let mut packages = self.dependencies.clone();
@@ -229,6 +246,23 @@ impl RegistryIndex {
                     index.name,
                     component.name
                 );
+            }
+
+            // An undeclared name here would make the component uninstallable under every
+            // variant, which looks like a copit bug rather than a registry typo.
+            for required in &component.only_variants {
+                if !index.variants.contains(required) {
+                    bail!(
+                        "Registry '{}' restricts component '{id}' to variant '{required}', \
+                         which it does not declare. Available: {}",
+                        index.name,
+                        if index.variants.is_empty() {
+                            "none".to_string()
+                        } else {
+                            index.variants.join(", ")
+                        }
+                    );
+                }
             }
         }
 
@@ -434,6 +468,31 @@ impl Resolver<'_> {
             return Ok(());
         }
 
+        // Checked here rather than on the requested ids alone, so a restricted component
+        // pulled in through `requires` fails too instead of landing unusable.
+        if !component.supports(self.variants) {
+            // Empty when the component was requested directly.
+            let required_by = match self.visiting.last() {
+                Some(parent) => format!(" (required by '{parent}')"),
+                None => String::new(),
+            };
+            bail!(
+                "Component '@{}/{id}'{required_by} requires variant {}.\n  \
+                 This project selects: {}\n  \
+                 Pass --variant {}, or set `variants` for this registry in copit.toml.",
+                self.index.name,
+                quoted_list(&component.only_variants),
+                if self.variants.is_empty() {
+                    "none".to_string()
+                } else {
+                    self.variants.join(", ")
+                },
+                // Any one of them satisfies the check, so suggest one rather than a
+                // command line that selects all of them at once.
+                component.only_variants[0]
+            );
+        }
+
         let mut files = component.files_for(self.variants);
         files.extend(component.optional_files(self.optional));
 
@@ -445,6 +504,12 @@ impl Resolver<'_> {
 
         Ok(())
     }
+}
+
+/// `["django"]` as `'django'`, `["a", "b"]` as `'a' or 'b'`.
+fn quoted_list(items: &[String]) -> String {
+    let quoted: Vec<String> = items.iter().map(|item| format!("'{item}'")).collect();
+    quoted.join(" or ")
 }
 
 /// Whether `candidate` is close enough to `typed` to suggest it.
@@ -490,28 +555,34 @@ fn within_one_edit(a: &str, b: &str) -> bool {
     a[1..] == *b || *a == b[1..]
 }
 
-/// Filename of a registry's generated index, at the root of its source.
-pub const INDEX_FILE: &str = "registry.json";
+/// Default filename of a registry's generated index, at the root of its source.
+///
+/// Namespaced to copit because `registry.json` is a common name: shadcn/ui uses it for
+/// its own registry format, so a repository could plausibly be both. Override per
+/// registry with `index` in `copit.toml` when a registry publishes it elsewhere.
+pub const INDEX_FILE: &str = "copit-registry.json";
 
 /// Load a registry index from a configured source.
 ///
-/// A local filesystem path is accepted so a registry author can test against their
-/// working tree before publishing.
-pub async fn load_index(source: &str) -> Result<RegistryIndex> {
+/// `index` overrides the filename, relative to the source root. A local filesystem
+/// path is accepted so a registry author can test against their working tree before
+/// publishing.
+pub async fn load_index(source: &str, index: Option<&str>) -> Result<RegistryIndex> {
+    let index_file = index.unwrap_or(INDEX_FILE);
     let local = std::path::Path::new(source);
     if local.is_dir() {
-        let path = local.join(INDEX_FILE);
+        let path = local.join(index_file);
         let raw = std::fs::read_to_string(&path).with_context(|| {
             format!(
                 "No {} in {}. Generate the index before installing from a local registry.",
-                INDEX_FILE,
+                index_file,
                 local.display()
             )
         })?;
         return RegistryIndex::from_json(&raw);
     }
 
-    let index_source = format!("{}/{}", source.trim_end_matches('/'), INDEX_FILE);
+    let index_source = format!("{}/{}", source.trim_end_matches('/'), index_file);
     let parsed = crate::sources::parse_source(&index_source)
         .with_context(|| format!("Invalid registry source '{source}'"))?;
 
@@ -676,6 +747,7 @@ mod tests {
             requires: requires.iter().map(|r| r.to_string()).collect(),
             dependencies: deps.iter().map(|d| d.to_string()).collect(),
             variants: BTreeMap::new(),
+            only_variants: vec![],
             files: vec!["__init__.py".to_string()],
             optional: BTreeMap::new(),
         }
@@ -1218,7 +1290,9 @@ mod tests {
         )
         .unwrap();
 
-        let index = load_index(dir.path().to_str().unwrap()).await.unwrap();
+        let index = load_index(dir.path().to_str().unwrap(), None)
+            .await
+            .unwrap();
 
         assert_eq!(index.name, "local");
     }
@@ -1274,12 +1348,12 @@ mod tests {
     async fn a_local_directory_without_an_index_says_to_generate_it() {
         let dir = tempfile::TempDir::new().unwrap();
 
-        let error = load_index(dir.path().to_str().unwrap())
+        let error = load_index(dir.path().to_str().unwrap(), None)
             .await
             .unwrap_err()
             .to_string();
 
-        assert!(error.contains("registry.json"), "{error}");
+        assert!(error.contains(INDEX_FILE), "{error}");
     }
 
     #[test]

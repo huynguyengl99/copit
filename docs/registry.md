@@ -26,7 +26,8 @@ Nothing about the format is tied to a language or framework. A registry declares
 ### Configure a registry
 
 ```bash
-copit registry add <name> <source> [--to <dir>] [--variant <name>] [--package-manager <name>]
+copit registry add <name> <source> [--to <dir>] [--index <file>] [--variant <name>]
+                  [--package-manager <name>]
 ```
 
 `<source>` is where the registry lives: `github:owner/repo@ref`, or a **local
@@ -101,10 +102,20 @@ keeps the incoming version as `.orig`. `copit update-all` takes the same path.
 
 ## For registry authors
 
-Publish a generated `registry.json` at the root of your repository. copit reads that one
+Publish a generated `copit-registry.json` at the root of your repository. copit reads that one
 file, so an install is a single request and a tag is self-describing.
 
-### `registry.json`
+The name is namespaced deliberately: `registry.json` is used by other tools (shadcn/ui
+among them), and a repository can plausibly be more than one kind of registry. Publish
+it elsewhere if you prefer, and point copit at it:
+
+```toml
+[registries.my-kit]
+source = "github:owner/repo@v1.0.0"
+index = "registry/index.json"    # defaults to copit-registry.json
+```
+
+### `copit-registry.json`
 
 ```json
 {
@@ -168,6 +179,7 @@ Validate yours against [`registry.schema.json`](registry.schema.json) in CI.
 | `requires` | | Other components, resolved transitively |
 | `dependencies` | | Packages for the project's package manager |
 | `variants` | | Per-variant extra `dependencies` and `include` files |
+| `only_variants` | | Variants this component requires. Empty installs anywhere |
 | `optional` | | Named groups excluded by default, installed with `--with`. Must be materialised per component |
 | `tier` | | Free-form label such as `core`. copit treats it as opaque |
 | `version`, `title`, `description`, `tags`, `authors` | | Shown by `search` and `info` |
@@ -177,13 +189,41 @@ Validate yours against [`registry.schema.json`](registry.schema.json) in CI.
     component lists in its own `optional` map, so materialise the group into every
     component that ships it. `--with <group>` errors if no component publishes it.
 
+### Restricting a component to a variant
+
+`variants` is additive: it adds files and packages when one is selected, and the
+component installs either way. Some components cannot work that way — one carrying a
+framework's models, migrations and admin has nothing to fall back to. Those declare
+`only_variants`:
+
+```json
+"django-message-store": {
+  "only_variants": ["django"],
+  "requires": ["room-chat"]
+}
+```
+
+copit then refuses to install it unless the project selects one of those variants,
+naming what to pass:
+
+```
+Component '@my-kit/django-message-store' requires variant 'django'.
+  This project selects: fastapi
+  Pass --variant django, or set `variants` for this registry in copit.toml.
+```
+
+The check covers components pulled in through `requires` as well, so a restricted
+dependency fails the install rather than landing unusable. Every name must appear in the
+registry's top-level `variants`; copit rejects an index where it does not, since that
+would make the component uninstallable everywhere.
+
 ### Materialise `files` at build time
 
 `files` is the contract: copit copies exactly those paths and nothing else. Resolving
 globs when you generate the index rather than at install time means
 
 - the CLI can show a plan before touching disk,
-- a diff of `registry.json` makes added or removed files reviewable in a pull request,
+- a diff of `copit-registry.json` makes added or removed files reviewable in a pull request,
 - and metadata or tests cannot leak into a user's project by accident.
 
 ### Three rules worth knowing
@@ -240,6 +280,7 @@ target = "vendor"
 
 [registries.my-kit]
 source = "github:owner/repo@v1.0.0"
+index = "copit-registry.json"  # optional; this is the default
 target = "app/components"
 variants = ["postgres"]
 package_manager = "uv"        # omit to detect; "none" to never install

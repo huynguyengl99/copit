@@ -70,6 +70,10 @@ pub struct RegistryAddCommand {
     #[arg(long = "to")]
     pub to: Option<String>,
 
+    /// Index filename within the source; defaults to `copit-registry.json`
+    #[arg(long)]
+    pub index: Option<String>,
+
     /// Registry-defined variant to select (repeatable)
     #[arg(long = "variant")]
     pub variants: Vec<String>,

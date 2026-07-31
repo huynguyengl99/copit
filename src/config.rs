@@ -75,6 +75,9 @@ pub struct RegistryConfig {
     /// Source the registry is fetched from, e.g. `github:owner/repo@v0.1.0`, or a
     /// local path while developing a registry.
     pub source: String,
+    /// Index filename relative to the source root; defaults to `copit-registry.json`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub index: Option<String>,
     /// Target directory for this registry's components; falls back to `target`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target: Option<String>,
@@ -295,6 +298,9 @@ pub fn save_config_to(config: &CopitConfig, path: &Path) -> Result<()> {
         for (name, registry) in &config.registries {
             let mut table = toml_edit::Table::new();
             table["source"] = toml_edit::value(&registry.source);
+            if let Some(ref index) = registry.index {
+                table["index"] = toml_edit::value(index);
+            }
             if let Some(ref target) = registry.target {
                 table["target"] = toml_edit::value(target);
             }
@@ -507,6 +513,9 @@ pub fn upsert_registry_in(config_file: &Path, name: &str, registry: &RegistryCon
 
     let mut table = toml_edit::Table::new();
     table["source"] = toml_edit::value(&registry.source);
+    if let Some(index) = &registry.index {
+        table["index"] = toml_edit::value(index);
+    }
     if let Some(target) = &registry.target {
         table["target"] = toml_edit::value(target);
     }
@@ -893,6 +902,7 @@ copied_at = "2026-03-07T00:00:00Z"
             "my-kit".to_string(),
             RegistryConfig {
                 source: "github:o/r@v1".to_string(),
+                index: Some("custom/index.json".to_string()),
                 target: Some("app/components".to_string()),
                 variants: vec!["postgres".to_string()],
                 package_manager: Some("uv".to_string()),
@@ -917,6 +927,7 @@ copied_at = "2026-03-07T00:00:00Z"
 
         let registry = loaded.registries.get("my-kit").expect("registry lost");
         assert_eq!(registry.source, "github:o/r@v1");
+        assert_eq!(registry.index.as_deref(), Some("custom/index.json"));
         assert_eq!(registry.target.as_deref(), Some("app/components"));
         assert_eq!(registry.variants, vec!["postgres"]);
         assert_eq!(registry.package_manager.as_deref(), Some("uv"));

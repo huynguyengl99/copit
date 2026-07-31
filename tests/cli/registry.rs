@@ -9,6 +9,14 @@ use super::copit_cmd;
 /// `auth` lives at `components/auth_core`, so its id and its directory differ, and
 /// `base.py` is listed under *both* variants, so a shared file is exercised.
 fn write_registry(root: &Path) {
+    write_registry_at(root, INDEX_FILE);
+}
+
+/// Filename copit looks for when a registry does not override it.
+const INDEX_FILE: &str = "copit-registry.json";
+
+/// Same registry, with the index written at `index_path` relative to `root`.
+fn write_registry_at(root: &Path, index_path: &str) {
     let index = r#"{
   "version": 1,
   "name": "my-kit",
@@ -34,7 +42,9 @@ fn write_registry(root: &Path) {
 }"#;
     std::fs::create_dir_all(root.join("components/logger")).unwrap();
     std::fs::create_dir_all(root.join("components/auth_core/stores")).unwrap();
-    std::fs::write(root.join("registry.json"), index).unwrap();
+    let index_path = root.join(index_path);
+    std::fs::create_dir_all(index_path.parent().unwrap()).unwrap();
+    std::fs::write(index_path, index).unwrap();
     std::fs::write(root.join("LICENSE"), "MIT").unwrap();
     std::fs::write(root.join("components/logger/__init__.py"), "logger").unwrap();
     std::fs::write(root.join("components/auth_core/__init__.py"), "auth").unwrap();
@@ -110,10 +120,10 @@ fn the_index_target_suggestion_is_recorded_not_applied_silently() {
 fn an_absolute_index_target_is_rejected() {
     let registry = TempDir::new().unwrap();
     write_registry(registry.path());
-    let index = std::fs::read_to_string(registry.path().join("registry.json"))
+    let index = std::fs::read_to_string(registry.path().join(INDEX_FILE))
         .unwrap()
         .replace("\"app/components\"", "\"/tmp/copit-escape\"");
-    std::fs::write(registry.path().join("registry.json"), index).unwrap();
+    std::fs::write(registry.path().join(INDEX_FILE), index).unwrap();
 
     let project = TempDir::new().unwrap();
     std::fs::write(project.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
@@ -129,6 +139,46 @@ fn an_absolute_index_target_is_rejected() {
         .assert()
         .failure()
         .stderr(predicates::str::contains("must be relative"));
+}
+
+#[test]
+fn an_index_override_is_recorded_and_used_for_later_installs() {
+    let registry = TempDir::new().unwrap();
+    write_registry_at(registry.path(), "registry/index.json");
+
+    let project = TempDir::new().unwrap();
+    std::fs::write(project.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
+
+    copit_cmd()
+        .args([
+            "registry",
+            "add",
+            "my-kit",
+            &registry.path().to_string_lossy(),
+            "--index",
+            "registry/index.json",
+        ])
+        .current_dir(project.path())
+        .assert()
+        .success();
+
+    let config = std::fs::read_to_string(project.path().join("copit.toml")).unwrap();
+    assert!(
+        config.contains("index = \"registry/index.json\""),
+        "{config}"
+    );
+
+    // The override has to survive into `add`, which reloads the index from config.
+    copit_cmd()
+        .args(["add", "@my-kit/logger", "-y"])
+        .current_dir(project.path())
+        .assert()
+        .success();
+
+    assert!(project
+        .path()
+        .join("app/components/logger/__init__.py")
+        .exists());
 }
 
 #[test]
@@ -307,6 +357,140 @@ fn no_deps_still_validates_the_selected_variant() {
         .assert()
         .failure()
         .stderr(predicates::str::contains("no variant 'postgresql'"));
+}
+
+/// A registry where `pg_admin` only installs under postgres, and `reports` needs it.
+///
+/// Kept separate from [`write_registry`] so the shared fixture stays unrestricted.
+fn write_restricted_registry(root: &Path, only_variants: &str) {
+    let index = format!(
+        r#"{{
+  "version": 1,
+  "name": "my-kit",
+  "ecosystem": "python",
+  "variants": ["sqlite", "postgres"],
+  "install": {{ "target": "app/components" }},
+  "components": {{
+    "pg_admin": {{
+      "name": "pg_admin", "path": "components/pg_admin", "version": "0.1.0",
+      "only_variants": [{only_variants}],
+      "files": ["__init__.py"]
+    }},
+    "reports": {{
+      "name": "reports", "path": "components/reports", "version": "0.1.0",
+      "requires": ["pg_admin"],
+      "files": ["__init__.py"]
+    }}
+  }}
+}}"#
+    );
+    std::fs::create_dir_all(root.join("components/pg_admin")).unwrap();
+    std::fs::create_dir_all(root.join("components/reports")).unwrap();
+    std::fs::write(root.join(INDEX_FILE), index).unwrap();
+    std::fs::write(root.join("LICENSE"), "MIT").unwrap();
+    std::fs::write(root.join("components/pg_admin/__init__.py"), "pg").unwrap();
+    std::fs::write(root.join("components/reports/__init__.py"), "reports").unwrap();
+}
+
+/// Project with the restricted registry configured under `variants`.
+fn project_with_restricted_registry(variants: &[&str], only_variants: &str) -> (TempDir, TempDir) {
+    let registry = TempDir::new().unwrap();
+    write_restricted_registry(registry.path(), only_variants);
+
+    let project = TempDir::new().unwrap();
+    std::fs::write(project.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
+
+    let mut args = vec![
+        "registry".to_string(),
+        "add".to_string(),
+        "my-kit".to_string(),
+        registry.path().to_string_lossy().to_string(),
+    ];
+    for variant in variants {
+        args.push("--variant".to_string());
+        args.push((*variant).to_string());
+    }
+
+    copit_cmd()
+        .args(&args)
+        .current_dir(project.path())
+        .assert()
+        .success();
+
+    (project, registry)
+}
+
+#[test]
+fn a_component_restricted_to_a_variant_is_refused_without_it() {
+    let (project, _registry) = project_with_restricted_registry(&["sqlite"], r#""postgres""#);
+
+    copit_cmd()
+        .args(["add", "@my-kit/pg_admin", "-y"])
+        .current_dir(project.path())
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("requires variant 'postgres'"))
+        .stderr(predicates::str::contains("This project selects: sqlite"))
+        .stderr(predicates::str::contains("--variant postgres"));
+
+    assert!(!project.path().join("app/components/pg_admin").exists());
+}
+
+#[test]
+fn a_component_restricted_to_a_variant_installs_with_it() {
+    let (project, _registry) = project_with_restricted_registry(&["postgres"], r#""postgres""#);
+
+    copit_cmd()
+        .args(["add", "@my-kit/pg_admin", "-y"])
+        .current_dir(project.path())
+        .assert()
+        .success();
+
+    assert!(project
+        .path()
+        .join("app/components/pg_admin/__init__.py")
+        .exists());
+}
+
+#[test]
+fn a_restricted_dependency_fails_the_install() {
+    // `reports` itself is unrestricted, so only the transitive check catches this. Without
+    // it the dependency would be skipped and `reports` would land importing nothing.
+    let (project, _registry) = project_with_restricted_registry(&["sqlite"], r#""postgres""#);
+
+    copit_cmd()
+        .args(["add", "@my-kit/reports", "-y"])
+        .current_dir(project.path())
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("'@my-kit/pg_admin'"))
+        .stderr(predicates::str::contains("required by 'reports'"));
+
+    assert!(!project.path().join("app/components/reports").exists());
+}
+
+#[test]
+fn restricting_to_an_undeclared_variant_is_rejected() {
+    // Otherwise the typo reads as a copit bug: the component installs nowhere, and the
+    // error blames whichever variant the user did select.
+    let registry = TempDir::new().unwrap();
+    write_restricted_registry(registry.path(), r#""postgres", "mysql""#);
+
+    let project = TempDir::new().unwrap();
+    std::fs::write(project.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
+
+    copit_cmd()
+        .args([
+            "registry",
+            "add",
+            "my-kit",
+            &registry.path().to_string_lossy(),
+        ])
+        .current_dir(project.path())
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("does not declare"))
+        .stderr(predicates::str::contains("mysql"));
 }
 
 #[test]

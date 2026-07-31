@@ -111,7 +111,7 @@ async fn update_component(
         None => registry.source.clone(),
     };
 
-    let index = crate::registry::load_index(&registry_source).await?;
+    let index = crate::registry::load_index(&registry_source, registry.index.as_deref()).await?;
     let component = index.component(component_id)?;
 
     let fetched = crate::registry::fetch_component(&registry_source, &component.path).await?;

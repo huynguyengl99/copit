@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://huynguyengl99.github.io/copit/registry.schema.json",
   "title": "copit registry index",
-  "description": "Generated index a registry publishes as registry.json. See https://huynguyengl99.github.io/copit/registry/",
+  "description": "Generated index a registry publishes as copit-registry.json. See https://huynguyengl99.github.io/copit/registry/",
   "type": "object",
   "required": [
     "version",
@@ -190,6 +190,14 @@
           "additionalProperties": {
             "$ref": "#/$defs/variant"
           }
+        },
+        "only_variants": {
+          "description": "Variants this component requires; empty installs anywhere. Unlike `variants`, which only adds files, this refuses the install when none is selected. Every name must appear in the registry's `variants`.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
         },
         "files": {
           "description": "Exactly what a normal install copies, excludes already applied.",

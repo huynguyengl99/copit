@@ -259,8 +259,11 @@ mod tests {
         // A registry install fetches the index and then every component from the same
         // archive. Without the cache that was one full repo download each time.
         let mut server = mockito::Server::new_async().await;
+        // The archive cache is keyed by URL and mockito reuses server ports, so every
+        // test here needs a version no other test uses or it may be served a cached
+        // zip from another test instead of hitting its own mock.
         let zip = create_github_zip(
-            "repo-v1/",
+            "repo-v1-cached/",
             &[
                 ("registry.json", b"{}"),
                 ("components/a/mod.rs", b"a"),
@@ -268,7 +271,7 @@ mod tests {
             ],
         );
         let archive = server
-            .mock("GET", "/owner/repo/archive/v1.zip")
+            .mock("GET", "/owner/repo/archive/v1-cached.zip")
             .with_status(200)
             .with_body(zip)
             .expect(1)
@@ -276,7 +279,7 @@ mod tests {
             .await;
 
         for path in ["registry.json", "components/a", "components/b"] {
-            fetch_github_from(&server.url(), "owner", "repo", "v1", path)
+            fetch_github_from(&server.url(), "owner", "repo", "v1-cached", path)
                 .await
                 .unwrap();
         }
@@ -398,7 +401,7 @@ mod tests {
     #[tokio::test]
     async fn test_fetch_github_extracts_license_files() {
         let zip_data = create_github_zip(
-            "repo-main/",
+            "repo-main-license/",
             &[
                 ("src/lib.rs", b"pub fn hello() {}"),
                 ("LICENSE", b"MIT License"),
@@ -408,13 +411,13 @@ mod tests {
 
         let mut server = mockito::Server::new_async().await;
         let mock = server
-            .mock("GET", "/owner/repo/archive/main.zip")
+            .mock("GET", "/owner/repo/archive/main-license.zip")
             .with_status(200)
             .with_body(&zip_data)
             .create_async()
             .await;
 
-        let result = fetch_github_from(&server.url(), "owner", "repo", "main", "src")
+        let result = fetch_github_from(&server.url(), "owner", "repo", "main-license", "src")
             .await
             .unwrap();
         assert_eq!(result.files.len(), 1);

@@ -59,7 +59,7 @@ All notable changes to this project will be documented in this file.
 
 ### Miscellaneous
 
-- Release v0.2.1 ([385based](https://github.com/huynguyengl99/copit/commit/385baedea0b4fce4a0c024febb6fd8940f739605))
+- Release v0.2.1 ([385baed](https://github.com/huynguyengl99/copit/commit/385baedea0b4fce4a0c024febb6fd8940f739605))
 
 ## [0.2.0] - 2026-03-08
 

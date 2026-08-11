@@ -51,6 +51,9 @@ echo "Releasing ${TAG}..."
 
 # --- Generate changelog ---
 git-cliff --tag "$TAG" -o CHANGELOG.md
+# git-cliff leaves an extra blank line at EOF, which end-of-file-fixer would
+# strip during commit and force a hook-retry cycle. Normalize it here.
+printf '%s\n' "$(<CHANGELOG.md)" > CHANGELOG.md
 echo "  Updated CHANGELOG.md"
 
 # --- Bump version in Cargo.toml ---

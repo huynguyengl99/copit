@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2026-08-11
+
+### Features
+
+- Read the registry index from copit-registry.json ([13ca8f1](https://github.com/huynguyengl99/copit/commit/13ca8f1aae7a519683e75b31d6d70bc39fcbbf3f))
+
+### Miscellaneous
+
+- Stop release hooks from rewriting the generated changelog ([4305243](https://github.com/huynguyengl99/copit/commit/4305243afc87274f7cb9dcf5b24825beb3c027dd))
+
+### Testing
+
+- Keep github fetch tests from sharing cached archives ([31668a5](https://github.com/huynguyengl99/copit/commit/31668a5cb45a0ec1114b543f5a21b1f90419d3c5))
+
 ## [0.4.1] - 2026-07-30
 
 ### Bug Fixes
@@ -17,7 +31,6 @@ All notable changes to this project will be documented in this file.
 ### Miscellaneous
 
 - Add rust-analyzer to the toolchain components ([d06732d](https://github.com/huynguyengl99/copit/commit/d06732d07cf13534f3d9f37461c0043e7762e278))
-- Release v0.4.0 ([11927e2](https://github.com/huynguyengl99/copit/commit/11927e2f304111dd4f8c4f75a9a7cdbdb53fc4fe))
 
 ## [0.3.0] - 2026-03-11
 
@@ -37,29 +50,17 @@ All notable changes to this project will be documented in this file.
 - Implement license track ([3829505](https://github.com/huynguyengl99/copit/commit/3829505d8e77170912b9f7ebf4491ebb78e3ee78))
 - Add licenses-sync command and refactor license path layout ([e715c17](https://github.com/huynguyengl99/copit/commit/e715c177a074278b8556a7230ff6b2d75d543a6f))
 
-### Miscellaneous
-
-- Release v0.3.0 ([f10eb3a](https://github.com/huynguyengl99/copit/commit/f10eb3a18902ff1fee3cd5d2709ff69811d6975f))
-
 ## [0.2.2] - 2026-03-08
 
 ### Bug Fixes
 
 - Install script unbound variable error in exit trap ([57926f2](https://github.com/huynguyengl99/copit/commit/57926f2b621987b565aeeb486f230844a1be2e5f))
 
-### Miscellaneous
-
-- Release v0.2.2 ([5fc1d38](https://github.com/huynguyengl99/copit/commit/5fc1d380b87b8d98939556a39be8c0084ee4e99e))
-
 ## [0.2.1] - 2026-03-08
 
 ### Bug Fixes
 
 - Update docs with use cases and uninstall instructions ([2b61a61](https://github.com/huynguyengl99/copit/commit/2b61a61c63f2e7fd44fccbb3db95bc99ec406ae3))
-
-### Miscellaneous
-
-- Release v0.2.1 ([385baed](https://github.com/huynguyengl99/copit/commit/385baedea0b4fce4a0c024febb6fd8940f739605))
 
 ## [0.2.0] - 2026-03-08
 
@@ -73,10 +74,6 @@ All notable changes to this project will be documented in this file.
 - Add uninstall script for copit ([3f8b3b3](https://github.com/huynguyengl99/copit/commit/3f8b3b3177e30425c2f1111cfc8c51139ffff82c))
 - Add versioned docs deployment with mike ([2731045](https://github.com/huynguyengl99/copit/commit/2731045e5446418d4cf659227a49d7b97c7f209a))
 
-### Miscellaneous
-
-- Release v0.2.0 ([62ca5c7](https://github.com/huynguyengl99/copit/commit/62ca5c70332a24b077dbab808d25f37e3643c248))
-
 ## [0.1.0] - 2026-03-08
 
 ### CI
@@ -86,7 +83,3 @@ All notable changes to this project will be documented in this file.
 ### Features
 
 - Init copit project ([f86c7b1](https://github.com/huynguyengl99/copit/commit/f86c7b1d4b2e8cfd9f9fe30f76b437f98aaca608))
-
-### Miscellaneous
-
-- Release v0.1.0 ([e9f4f8b](https://github.com/huynguyengl99/copit/commit/e9f4f8b5212185ac7b9827eb82f6c0c745336dae))

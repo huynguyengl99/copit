@@ -1,6 +1,6 @@
 [package]
 name = "copit"
-version = "0.4.1"
+version = "0.5.0"
 edition = "2021"
 description = "Copy reusable source code from GitHub repos, HTTP URLs, and ZIP archives into your project"
 license = "MIT"

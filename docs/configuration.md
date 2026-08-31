@@ -39,6 +39,7 @@ A configured registry, keyed by the name used in `@name/component`. See
 | `index` | Index filename within the source; defaults to `copit-registry.json` |
 | `target` | Dedicated directory for this registry's components; falls back to the project `target` |
 | `variants` | Registry-defined variants to select, e.g. `["postgres"]` |
+| `optional` | Optional groups every component of this registry installs, e.g. `["tests"]` |
 | `package_manager` | Manager to use; detected when unset. `"none"` never installs |
 
 ```toml
@@ -46,8 +47,13 @@ A configured registry, keyed by the name used in `@name/component`. See
 source = "github:owner/repo@v1.0.0"
 target = "app/components"
 variants = ["postgres"]
+optional = ["tests"]
 package_manager = "uv"
 ```
+
+`variants` and `optional` are defaults for the whole registry, named after the index keys
+they select from. On `add`, `--variant` and `--with` *replace* them for that install, and
+`--no-optional` takes no groups at all.
 
 ### `[[sources]]`
 
@@ -67,7 +73,9 @@ Each entry in the `sources` array represents one copied source:
 | `backup` | Per-source override: save `.orig` backup for excluded modified files |
 | `no_license` | Skip copying license files for this source (set via `--no-license` on `add`) |
 | `component` | Registry component this path came from, as `registry:id`. Set when installed from a registry, and how copit knows which components are already present when resolving dependencies |
+| `component_version` | The component's own version from the index. Distinct from `ref`, the registry tag that covers every component in a monorepo registry |
 | `variants` | Variants selected when this component was installed, so `update` reproduces the same file selection |
+| `optional` | Groups selected on install, so `update` reproduces them. Absent falls back to the registry's `optional`; `[]` means `--no-optional` |
 
 Settings priority: CLI flags > per-source config > root-level config > default (`false`).
 

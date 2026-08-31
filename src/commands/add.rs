@@ -41,6 +41,7 @@ pub async fn run(cmd: &AddCommand) -> Result<()> {
         for (flag, used) in [
             ("--no-deps", cmd.no_deps),
             ("--no-packages", cmd.no_packages),
+            ("--no-optional", cmd.no_optional),
             ("-y/--yes", cmd.yes),
         ] {
             if used {

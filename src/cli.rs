@@ -78,6 +78,10 @@ pub struct RegistryAddCommand {
     #[arg(long = "variant")]
     pub variants: Vec<String>,
 
+    /// Optional file group every component of this registry installs, e.g. `--with tests` (repeatable). `--with` on `add` overrides it
+    #[arg(long = "with")]
+    pub with: Vec<String>,
+
     /// Package manager to use; detected when omitted. Use `none` to never install.
     #[arg(long)]
     pub package_manager: Option<String>,
@@ -209,6 +213,10 @@ pub struct AddCommand {
     /// Also copy an optional file group, e.g. `--with tests` (repeatable)
     #[arg(long = "with")]
     pub with: Vec<String>,
+
+    /// Install no optional groups, ignoring the registry's configured `optional`
+    #[arg(long, conflicts_with = "with")]
+    pub no_optional: bool,
 }
 
 #[derive(Parser)]

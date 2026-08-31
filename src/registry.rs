@@ -17,7 +17,9 @@
 //! dependencies and text, never commands for copit to run.
 
 use anyhow::{bail, Context, Result};
-use serde::{Deserialize, Serialize};
+use serde::de::value::{MapAccessDeserializer, SeqAccessDeserializer};
+use serde::de::{MapAccess, SeqAccess, Visitor};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::{BTreeMap, HashSet};
 
 /// The index format version this build understands.
@@ -35,6 +37,82 @@ pub struct Variant {
     /// Files copied *only* when this variant is selected.
     #[serde(default)]
     pub include: Vec<String>,
+}
+
+/// What an optional group brings in beyond its files.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OptionalSpec {
+    #[serde(default)]
+    pub include: Vec<String>,
+    /// Resolved like the component-level field, but only when the group is selected.
+    #[serde(default)]
+    pub requires: Vec<String>,
+    /// Needed only when the group is selected.
+    #[serde(default)]
+    pub dependencies: Vec<String>,
+}
+
+/// A named optional group: files, plus what they need to work.
+#[derive(Debug, Clone, Serialize)]
+#[serde(untagged)]
+pub enum OptionalGroup {
+    /// Shorthand every published index uses today.
+    Files(Vec<String>),
+    Detailed(OptionalSpec),
+}
+
+impl OptionalGroup {
+    pub fn include(&self) -> &[String] {
+        match self {
+            Self::Files(files) => files,
+            Self::Detailed(spec) => &spec.include,
+        }
+    }
+
+    pub fn requires(&self) -> &[String] {
+        match self {
+            Self::Files(_) => &[],
+            Self::Detailed(spec) => &spec.requires,
+        }
+    }
+
+    pub fn dependencies(&self) -> &[String] {
+        match self {
+            Self::Files(_) => &[],
+            Self::Detailed(spec) => &spec.dependencies,
+        }
+    }
+}
+
+// Written out rather than derived as `untagged`, which reports only "data did not match
+// any variant" and would let a misspelled key parse as an empty group, so `--with` would
+// print the group and copy nothing.
+impl<'de> Deserialize<'de> for OptionalGroup {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct GroupVisitor;
+
+        impl<'de> Visitor<'de> for GroupVisitor {
+            type Value = OptionalGroup;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str(
+                    "a list of files, or an object with include, requires and dependencies",
+                )
+            }
+
+            fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<Self::Value, A::Error> {
+                Deserialize::deserialize(SeqAccessDeserializer::new(seq)).map(OptionalGroup::Files)
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
+                Deserialize::deserialize(MapAccessDeserializer::new(map))
+                    .map(OptionalGroup::Detailed)
+            }
+        }
+
+        deserializer.deserialize_any(GroupVisitor)
+    }
 }
 
 /// One installable component.
@@ -77,10 +155,9 @@ pub struct Component {
     /// Files the registry expects to be copied, excludes already applied.
     #[serde(default)]
     pub files: Vec<String>,
-    /// Named groups of files excluded from a normal install, e.g. `tests`, copied on
-    /// `--with`.
+    /// Named groups excluded from a normal install, e.g. `tests`, installed on `--with`.
     #[serde(default)]
-    pub optional: BTreeMap<String, Vec<String>>,
+    pub optional: BTreeMap<String, OptionalGroup>,
 }
 
 impl Component {
@@ -93,12 +170,17 @@ impl Component {
                 .any(|required| selected.contains(required))
     }
 
-    /// Packages needed for this component under the selected variants.
-    pub fn packages_for(&self, variants: &[String]) -> Vec<String> {
+    /// Packages needed for this component under the selected variants and groups.
+    pub fn packages_for(&self, variants: &[String], groups: &[String]) -> Vec<String> {
         let mut packages = self.dependencies.clone();
         for variant in variants {
             if let Some(config) = self.variants.get(variant) {
                 packages.extend(config.dependencies.iter().cloned());
+            }
+        }
+        for group in groups {
+            if let Some(spec) = self.optional.get(group) {
+                packages.extend(spec.dependencies().iter().cloned());
             }
         }
         packages
@@ -138,12 +220,31 @@ impl Component {
         let mut files: Vec<String> = groups
             .iter()
             .filter_map(|group| self.optional.get(group))
-            .flatten()
+            .flat_map(OptionalGroup::include)
             .cloned()
             .collect();
         files.sort();
         files.dedup();
         files
+    }
+
+    /// Components the selected groups pull in, deduplicated.
+    ///
+    /// Separate from [`Component::requires`] because a group's files are opt-in: a test
+    /// harness must not land in a project that never asked for the tests importing it.
+    pub fn optional_requires(&self, groups: &[String]) -> Vec<String> {
+        let mut ids: Vec<String> = Vec::new();
+        for group in groups {
+            let Some(spec) = self.optional.get(group) else {
+                continue;
+            };
+            for id in spec.requires() {
+                if !ids.contains(id) {
+                    ids.push(id.clone());
+                }
+            }
+        }
+        ids
     }
 }
 
@@ -163,7 +264,7 @@ pub struct InstallConfig {
     pub exclude: Vec<String>,
     /// Named groups excluded by default, installable on request (e.g. `tests`).
     #[serde(default)]
-    pub optional: BTreeMap<String, Vec<String>>,
+    pub optional: BTreeMap<String, OptionalGroup>,
 }
 
 /// A fetched registry index.
@@ -361,7 +462,7 @@ impl RegistryIndex {
         plan.packages = plan
             .components
             .iter()
-            .flat_map(|planned| planned.component.packages_for(variants))
+            .flat_map(|planned| planned.component.packages_for(variants, optional))
             .filter(|package| seen.insert(package.clone()))
             .collect();
 
@@ -456,6 +557,9 @@ impl Resolver<'_> {
             self.visiting.push(id.to_string());
             // Post-order: dependencies land in the plan before whatever needs them.
             for dependency in component.requires.clone() {
+                self.visit(&dependency)?;
+            }
+            for dependency in component.optional_requires(self.optional) {
                 self.visit(&dependency)?;
             }
             self.visiting.pop();
@@ -751,6 +855,10 @@ mod tests {
             files: vec!["__init__.py".to_string()],
             optional: BTreeMap::new(),
         }
+    }
+
+    fn file_group(paths: &[&str]) -> OptionalGroup {
+        OptionalGroup::Files(paths.iter().map(|path| path.to_string()).collect())
     }
 
     fn index(components: Vec<Component>) -> RegistryIndex {
@@ -1178,15 +1286,14 @@ mod tests {
     #[test]
     fn optional_groups_are_copied_only_when_requested() {
         let mut widget = component("widget", &[], &[]);
-        widget.optional.insert(
-            "tests".to_string(),
-            vec!["tests/test_widget.py".to_string()],
-        );
+        widget
+            .optional
+            .insert("tests".to_string(), file_group(&["tests/test_widget.py"]));
         let mut registry = index(vec![widget]);
         registry
             .install
             .optional
-            .insert("tests".to_string(), vec!["tests/**".to_string()]);
+            .insert("tests".to_string(), file_group(&["tests/**"]));
 
         let without = registry
             .plan(
@@ -1214,10 +1321,163 @@ mod tests {
         );
     }
 
+    /// A group whose files import another component, the chanx-kit case: kits publish
+    /// their tests as a group, and those tests import a shared harness component.
+    fn with_test_group(name: &str, harness: &str) -> Component {
+        let mut component = component(name, &[], &[]);
+        component.optional.insert(
+            "tests".to_string(),
+            OptionalGroup::Detailed(OptionalSpec {
+                include: vec!["tests/test_it.py".to_string()],
+                requires: vec![harness.to_string()],
+                dependencies: vec!["pytest>=8".to_string()],
+            }),
+        );
+        component
+    }
+
+    #[test]
+    fn a_group_requirement_is_planned_before_the_component_that_declares_it() {
+        let registry = index(vec![
+            component("harness", &[], &[]),
+            with_test_group("notify", "harness"),
+        ]);
+
+        let plan = registry
+            .plan(
+                &["notify".to_string()],
+                &[],
+                &["tests".to_string()],
+                &HashSet::new(),
+                Deps::Resolve,
+            )
+            .unwrap();
+
+        assert_eq!(plan_ids(&plan), vec!["harness", "notify"]);
+    }
+
+    #[test]
+    fn a_group_requirement_stays_out_when_the_group_is_not_selected() {
+        // The regression this whole field exists for: without it, either every user got
+        // a test harness they never asked for, or the copied tests imported nothing.
+        let registry = index(vec![
+            component("harness", &[], &[]),
+            with_test_group("notify", "harness"),
+        ]);
+
+        let plan = registry
+            .plan(
+                &["notify".to_string()],
+                &[],
+                &[],
+                &HashSet::new(),
+                Deps::Resolve,
+            )
+            .unwrap();
+
+        assert_eq!(plan_ids(&plan), vec!["notify"]);
+    }
+
+    #[test]
+    fn no_deps_skips_group_requirements_too() {
+        let registry = index(vec![
+            component("harness", &[], &[]),
+            with_test_group("notify", "harness"),
+        ]);
+
+        let plan = registry
+            .plan(
+                &["notify".to_string()],
+                &[],
+                &["tests".to_string()],
+                &HashSet::new(),
+                Deps::Skip,
+            )
+            .unwrap();
+
+        assert_eq!(plan_ids(&plan), vec!["notify"]);
+    }
+
+    #[test]
+    fn a_cycle_through_a_group_requirement_is_reported() {
+        let registry = index(vec![
+            component("harness", &["notify"], &[]),
+            with_test_group("notify", "harness"),
+        ]);
+
+        let error = registry
+            .plan(
+                &["notify".to_string()],
+                &[],
+                &["tests".to_string()],
+                &HashSet::new(),
+                Deps::Resolve,
+            )
+            .unwrap_err()
+            .to_string();
+
+        assert!(error.contains("Dependency cycle"), "{error}");
+        assert!(error.contains("notify -> harness -> notify"), "{error}");
+    }
+
+    #[test]
+    fn group_packages_are_added_only_when_the_group_is_selected() {
+        let notify = with_test_group("notify", "harness");
+
+        assert_eq!(notify.packages_for(&[], &[]), Vec::<String>::new());
+        assert_eq!(
+            notify.packages_for(&[], &["tests".to_string()]),
+            vec!["pytest>=8"]
+        );
+    }
+
+    #[test]
+    fn a_group_in_the_bare_list_form_still_declares_its_files() {
+        let raw = r#"{
+            "version": 1,
+            "name": "kit",
+            "components": {
+                "one": {
+                    "name": "one",
+                    "path": "kits/one",
+                    "optional": { "tests": ["tests/test_one.py"] }
+                }
+            }
+        }"#;
+
+        let index = RegistryIndex::from_json(raw).unwrap();
+        let group = &index.components["one"].optional["tests"];
+
+        assert_eq!(group.include(), ["tests/test_one.py"]);
+        assert!(group.requires().is_empty());
+        assert!(group.dependencies().is_empty());
+    }
+
+    #[test]
+    fn a_misspelled_group_key_is_rejected_rather_than_read_as_empty() {
+        // An untagged enum would accept this as a group with no files at all, so
+        // `--with tests` would report the group and copy nothing.
+        let raw = r#"{
+            "version": 1,
+            "name": "kit",
+            "components": {
+                "one": {
+                    "name": "one",
+                    "path": "kits/one",
+                    "optional": { "tests": { "includes": ["tests/test_one.py"] } }
+                }
+            }
+        }"#;
+
+        let error = RegistryIndex::from_json(raw).unwrap_err().to_string();
+
+        assert!(error.contains("includes"), "{error}");
+    }
+
     #[test]
     fn an_unknown_optional_group_lists_what_is_available() {
         let mut widget = component("widget", &[], &[]);
-        widget.optional.insert("tests".to_string(), vec![]);
+        widget.optional.insert("tests".to_string(), file_group(&[]));
         let registry = index(vec![widget]);
 
         let error = registry
@@ -1334,7 +1594,7 @@ mod tests {
         registry
             .install
             .optional
-            .insert("tests".to_string(), vec!["tests/**".to_string()]);
+            .insert("tests".to_string(), file_group(&["tests/**"]));
 
         let error = registry
             .check_optional(&["tests".to_string()])

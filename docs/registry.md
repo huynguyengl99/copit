@@ -61,7 +61,8 @@ copit add @my-kit/cache --dry-run # show the plan and stop
 | `--no-deps` | Install only what was named, not what it requires |
 | `--no-packages` | Copy files but do not install package dependencies |
 | `--variant <name>` | Override the configured variants |
-| `--with <group>` | Also copy an optional file group, e.g. `--with tests` |
+| `--with <group>` | Install an optional group, e.g. `--with tests`. Overrides the registry's `optional` |
+| `--no-optional` | Install no optional groups, overriding the registry's `optional` |
 | `--to <dir>` | Override the target directory |
 
 Dependencies are installed **before** the components that need them, so a component can
@@ -148,7 +149,13 @@ index = "registry/index.json"    # defaults to copit-registry.json
         "sqlite": { "dependencies": ["sqlite-driver>=1.0"], "include": ["stores/sqlite.py"] }
       },
       "files": ["__init__.py", "sessions.py", "mixins.py"],
-      "optional": { "tests": ["tests/test_auth.py"] }
+      "optional": {
+        "tests": {
+          "include": ["tests/test_auth.py"],
+          "requires": ["testing"],
+          "dependencies": ["pytest>=8"]
+        }
+      }
     }
   }
 }
@@ -188,6 +195,40 @@ Validate yours against [`registry.schema.json`](registry.schema.json) in CI.
     `install.optional` is a default for your generator. copit copies only what a
     component lists in its own `optional` map, so materialise the group into every
     component that ships it. `--with <group>` errors if no component publishes it.
+
+### What an optional group needs to work
+
+A group is a bare list of files, or an object that also declares what those files need:
+
+```json
+"optional": {
+  "docs": ["docs/auth.md"],
+  "tests": {
+    "include": ["tests/test_auth.py"],
+    "requires": ["testing"],
+    "dependencies": ["pytest>=8"]
+  }
+}
+```
+
+Both forms are valid in index version 1. `requires` and `dependencies` apply *only when
+the group is selected*, which is what makes a group like `tests` expressible: copied
+tests that import a shared harness need that harness, and a project that never asked for
+the tests must not get it. The requirement resolves like any other — ordered first,
+transitive, subject to `only_variants`, skipped by `--no-deps`.
+
+Selecting groups, in precedence order:
+
+| | Effect |
+|---|---|
+| `copit add … --no-optional` | No groups, overriding everything below |
+| `copit add … --with tests` | Exactly these groups |
+| `optional = ["tests"]` in `[registries.<name>]` | Every component of that registry |
+
+`copit info @my-kit/auth` lists what a component publishes. Whichever selection applied
+is recorded on the source entry, so `update` reproduces it and installs a requirement the
+group gains in a later index version — reporting that requirement's packages rather than
+installing them, since `update` never runs a package manager.
 
 ### Restricting a component to a variant
 

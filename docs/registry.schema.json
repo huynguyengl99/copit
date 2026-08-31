@@ -114,10 +114,40 @@
           "description": "Generator-side default for named optional groups. copit copies only what each component materialises into its own `optional` map.",
           "type": "object",
           "additionalProperties": {
-            "$ref": "#/$defs/fileList"
+            "$ref": "#/$defs/optionalGroup"
           }
         }
       }
+    },
+    "optionalGroup": {
+      "description": "One named group, as a bare file list or as an object that also declares what those files need. `requires` and `dependencies` apply only when the group is selected with --with.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/fileList"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "include": {
+              "description": "Files copied when the group is selected.",
+              "$ref": "#/$defs/fileList"
+            },
+            "requires": {
+              "description": "Other components in this registry, resolved only when the group is selected.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/componentId"
+              },
+              "uniqueItems": true
+            },
+            "dependencies": {
+              "description": "Packages needed only when the group is selected.",
+              "$ref": "#/$defs/packageList"
+            }
+          }
+        }
+      ]
     },
     "variant": {
       "type": "object",
@@ -204,10 +234,10 @@
           "$ref": "#/$defs/fileList"
         },
         "optional": {
-          "description": "Files per optional group, copied only when requested with --with.",
+          "description": "Named groups installed only when requested with --with.",
           "type": "object",
           "additionalProperties": {
-            "$ref": "#/$defs/fileList"
+            "$ref": "#/$defs/optionalGroup"
           }
         }
       }

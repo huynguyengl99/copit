@@ -67,6 +67,16 @@ pub struct SourceEntry {
     /// same file selection even when `--variant` overrode the registry's list.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub variants: Vec<String>,
+    /// Distinct from `ref`, the registry's own tag: a monorepo registry publishes one
+    /// tag covering many components, each with its own semver.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub component_version: Option<String>,
+    /// Optional groups selected on install, so `update` reproduces them.
+    ///
+    /// Absent falls back to the registry's own `optional`; an empty list is an explicit
+    /// `--no-optional`, the only way to opt one component out of a registry-wide default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub optional: Option<Vec<String>>,
 }
 
 /// A configured registry: where its index lives and how to install from it.
@@ -84,6 +94,9 @@ pub struct RegistryConfig {
     /// Registry-defined variants to select, e.g. `["postgres"]`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub variants: Vec<String>,
+    /// Optional groups every component of this registry installs, e.g. `["tests"]`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub optional: Vec<String>,
     /// Package manager to use; detected when unset. `"none"` disables installing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub package_manager: Option<String>,
@@ -272,12 +285,22 @@ pub fn save_config_to(config: &CopitConfig, path: &Path) -> Result<()> {
             if let Some(ref component) = entry.component {
                 table["component"] = toml_edit::value(component);
             }
+            if let Some(ref version) = entry.component_version {
+                table["component_version"] = toml_edit::value(version);
+            }
             if !entry.variants.is_empty() {
                 let mut arr = toml_edit::Array::new();
                 for variant in &entry.variants {
                     arr.push(variant.as_str());
                 }
                 table["variants"] = toml_edit::value(arr);
+            }
+            if let Some(ref groups) = entry.optional {
+                let mut arr = toml_edit::Array::new();
+                for group in groups {
+                    arr.push(group.as_str());
+                }
+                table["optional"] = toml_edit::value(arr);
             }
             table["copied_at"] = toml_edit::value(&entry.copied_at);
             if !entry.excludes.is_empty() {
@@ -296,25 +319,7 @@ pub fn save_config_to(config: &CopitConfig, path: &Path) -> Result<()> {
         let mut registries = toml_edit::Table::new();
         registries.set_implicit(true);
         for (name, registry) in &config.registries {
-            let mut table = toml_edit::Table::new();
-            table["source"] = toml_edit::value(&registry.source);
-            if let Some(ref index) = registry.index {
-                table["index"] = toml_edit::value(index);
-            }
-            if let Some(ref target) = registry.target {
-                table["target"] = toml_edit::value(target);
-            }
-            if !registry.variants.is_empty() {
-                let mut variants = toml_edit::Array::new();
-                for variant in &registry.variants {
-                    variants.push(variant.as_str());
-                }
-                table["variants"] = toml_edit::value(variants);
-            }
-            if let Some(ref manager) = registry.package_manager {
-                table["package_manager"] = toml_edit::value(manager);
-            }
-            registries.insert(name, toml_edit::Item::Table(table));
+            registries.insert(name, toml_edit::Item::Table(registry_table(registry)));
         }
         doc["registries"] = toml_edit::Item::Table(registries);
     }
@@ -439,20 +444,28 @@ pub fn installed_components(config: &CopitConfig, registry: &str) -> HashSet<Str
         .collect()
 }
 
-/// Record which registry component a tracked path came from, and which variants were
-/// selected when it was installed.
+/// Record which registry component a tracked path came from, at which version, and
+/// which variants and optional groups were selected when it was installed.
 ///
-/// The variants are stored per entry because `--variant` can override the registry's
-/// configured list, and `update` has to reproduce the same file selection.
-pub fn set_source_component(path: &str, component: &str, variants: &[String]) -> Result<()> {
-    set_source_component_in(&config_path(), path, component, variants)
+/// Stored per entry because `--variant` and `--with` override the registry's configured
+/// lists, and `update` has to reproduce them.
+pub fn set_source_component(
+    path: &str,
+    component: &str,
+    version: Option<&str>,
+    variants: &[String],
+    optional: Option<&[String]>,
+) -> Result<()> {
+    set_source_component_in(&config_path(), path, component, version, variants, optional)
 }
 
 pub fn set_source_component_in(
     config_file: &Path,
     path: &str,
     component: &str,
+    version: Option<&str>,
     variants: &[String],
+    optional: Option<&[String]>,
 ) -> Result<()> {
     let content = std::fs::read_to_string(config_file).context("Failed to read copit.toml")?;
     let mut doc = content
@@ -468,6 +481,12 @@ pub fn set_source_component_in(
     for table in sources.iter_mut() {
         if table.get("path").and_then(|v| v.as_str()) == Some(path) {
             table["component"] = toml_edit::value(component);
+            match version {
+                Some(version) => table["component_version"] = toml_edit::value(version),
+                None => {
+                    table.remove("component_version");
+                }
+            }
             if variants.is_empty() {
                 table.remove("variants");
             } else {
@@ -476,6 +495,18 @@ pub fn set_source_component_in(
                     array.push(variant.as_str());
                 }
                 table["variants"] = toml_edit::value(array);
+            }
+            match optional {
+                Some(groups) => {
+                    let mut array = toml_edit::Array::new();
+                    for group in groups {
+                        array.push(group.as_str());
+                    }
+                    table["optional"] = toml_edit::value(array);
+                }
+                None => {
+                    table.remove("optional");
+                }
             }
             found = true;
             break;
@@ -488,6 +519,39 @@ pub fn set_source_component_in(
 
     std::fs::write(config_file, doc.to_string()).context("Failed to write copit.toml")?;
     Ok(())
+}
+
+/// One `[registries.<name>]` table.
+///
+/// Shared by the full save and the in-place upsert: written twice, a field added to
+/// [`RegistryConfig`] persists through one and silently vanishes through the other.
+fn registry_table(registry: &RegistryConfig) -> toml_edit::Table {
+    let mut table = toml_edit::Table::new();
+    table["source"] = toml_edit::value(&registry.source);
+    if let Some(index) = &registry.index {
+        table["index"] = toml_edit::value(index);
+    }
+    if let Some(target) = &registry.target {
+        table["target"] = toml_edit::value(target);
+    }
+    if !registry.variants.is_empty() {
+        let mut variants = toml_edit::Array::new();
+        for variant in &registry.variants {
+            variants.push(variant.as_str());
+        }
+        table["variants"] = toml_edit::value(variants);
+    }
+    if !registry.optional.is_empty() {
+        let mut groups = toml_edit::Array::new();
+        for group in &registry.optional {
+            groups.push(group.as_str());
+        }
+        table["optional"] = toml_edit::value(groups);
+    }
+    if let Some(manager) = &registry.package_manager {
+        table["package_manager"] = toml_edit::value(manager);
+    }
+    table
 }
 
 /// Add or replace a configured registry, preserving everything else.
@@ -511,25 +575,7 @@ pub fn upsert_registry_in(config_file: &Path, name: &str, registry: &RegistryCon
         .as_table_mut()
         .context("registries should be a table")?;
 
-    let mut table = toml_edit::Table::new();
-    table["source"] = toml_edit::value(&registry.source);
-    if let Some(index) = &registry.index {
-        table["index"] = toml_edit::value(index);
-    }
-    if let Some(target) = &registry.target {
-        table["target"] = toml_edit::value(target);
-    }
-    if !registry.variants.is_empty() {
-        let mut variants = toml_edit::Array::new();
-        for variant in &registry.variants {
-            variants.push(variant.as_str());
-        }
-        table["variants"] = toml_edit::value(variants);
-    }
-    if let Some(manager) = &registry.package_manager {
-        table["package_manager"] = toml_edit::value(manager);
-    }
-    registries.insert(name, toml_edit::Item::Table(table));
+    registries.insert(name, toml_edit::Item::Table(registry_table(registry)));
 
     std::fs::write(config_file, doc.to_string()).context("Failed to write copit.toml")?;
     Ok(())
@@ -905,6 +951,7 @@ copied_at = "2026-03-07T00:00:00Z"
                 index: Some("custom/index.json".to_string()),
                 target: Some("app/components".to_string()),
                 variants: vec!["postgres".to_string()],
+                optional: vec!["tests".to_string()],
                 package_manager: Some("uv".to_string()),
             },
         );
@@ -916,6 +963,9 @@ copied_at = "2026-03-07T00:00:00Z"
                 source: "github:o/r@v1/components/auth".to_string(),
                 copied_at: "2026-01-01T00:00:00Z".to_string(),
                 component: Some("my-kit:auth".to_string()),
+                component_version: Some("0.2.0".to_string()),
+                variants: vec!["postgres".to_string()],
+                optional: Some(vec!["tests".to_string()]),
                 ..Default::default()
             }],
             registries,
@@ -930,8 +980,71 @@ copied_at = "2026-03-07T00:00:00Z"
         assert_eq!(registry.index.as_deref(), Some("custom/index.json"));
         assert_eq!(registry.target.as_deref(), Some("app/components"));
         assert_eq!(registry.variants, vec!["postgres"]);
+        assert_eq!(registry.optional, vec!["tests"]);
         assert_eq!(registry.package_manager.as_deref(), Some("uv"));
-        assert_eq!(loaded.sources[0].component.as_deref(), Some("my-kit:auth"));
+
+        let entry = &loaded.sources[0];
+        assert_eq!(entry.component.as_deref(), Some("my-kit:auth"));
+        assert_eq!(entry.component_version.as_deref(), Some("0.2.0"));
+        assert_eq!(entry.variants, vec!["postgres"]);
+        assert_eq!(
+            entry.optional.as_deref(),
+            Some(["tests".to_string()].as_slice())
+        );
+    }
+
+    #[test]
+    fn recording_a_component_clears_a_selection_that_is_now_empty() {
+        let dir = TempDir::new().unwrap();
+        let config_file = config_path_in(dir.path());
+
+        save_config_to(&CopitConfig::default(), &config_file).unwrap();
+        add_source_entry_to(
+            &config_file,
+            "app/components/auth",
+            "github:o/r@v1/components/auth",
+            Some("v1"),
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+
+        set_source_component_in(
+            &config_file,
+            "app/components/auth",
+            "my-kit:auth",
+            Some("0.1.0"),
+            &["postgres".to_string()],
+            Some(["tests".to_string()].as_slice()),
+        )
+        .unwrap();
+
+        let loaded = load_config_from(&config_file).unwrap();
+        assert_eq!(
+            loaded.sources[0].component_version.as_deref(),
+            Some("0.1.0")
+        );
+        assert_eq!(
+            loaded.sources[0].optional.as_deref(),
+            Some(["tests".to_string()].as_slice())
+        );
+
+        // Re-installing without the group must not leave the old selection behind, or
+        // `update` would keep refreshing files the user no longer asked for.
+        set_source_component_in(
+            &config_file,
+            "app/components/auth",
+            "my-kit:auth",
+            None,
+            &[],
+            None,
+        )
+        .unwrap();
+
+        let raw = std::fs::read_to_string(&config_file).unwrap();
+        assert!(!raw.contains("optional ="), "{raw}");
+        assert!(!raw.contains("component_version"), "{raw}");
     }
 
     #[test]

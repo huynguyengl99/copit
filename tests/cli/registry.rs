@@ -505,6 +505,457 @@ fn an_optional_group_no_component_publishes_is_rejected() {
         .stderr(predicates::str::contains("no optional group 'tests'"));
 }
 
+/// A registry whose optional group needs another component to be usable: `notify`
+/// publishes its tests, and those tests import the shared `testing` harness.
+///
+/// `group` is the JSON for that group, so one fixture covers both forms.
+fn write_group_registry(root: &Path, group: &str) {
+    let index = format!(
+        r#"{{
+  "version": 1,
+  "name": "my-kit",
+  "ecosystem": "python",
+  "install": {{ "target": "app/components" }},
+  "components": {{
+    "testing": {{
+      "name": "testing", "path": "components/testing", "version": "0.1.0", "tier": "core",
+      "files": ["__init__.py"]
+    }},
+    "notify": {{
+      "name": "notify", "path": "components/notify", "version": "0.2.0", "tier": "core",
+      "files": ["__init__.py"],
+      "optional": {{ "tests": {group} }}
+    }}
+  }}
+}}"#
+    );
+    std::fs::create_dir_all(root.join("components/testing")).unwrap();
+    std::fs::create_dir_all(root.join("components/notify/tests")).unwrap();
+    std::fs::write(root.join(INDEX_FILE), index).unwrap();
+    std::fs::write(root.join("components/testing/__init__.py"), "harness").unwrap();
+    std::fs::write(root.join("components/notify/__init__.py"), "notify").unwrap();
+    std::fs::write(
+        root.join("components/notify/tests/test_notify.py"),
+        "import testing",
+    )
+    .unwrap();
+}
+
+const TESTS_GROUP: &str = r#"{
+        "include": ["tests/test_notify.py"],
+        "requires": ["testing"],
+        "dependencies": ["pytest>=8"]
+      }"#;
+
+fn project_with_group_registry(group: &str) -> (TempDir, TempDir) {
+    configure_group_registry(group, &[])
+}
+
+/// The same fixture, with groups configured on the registry itself.
+fn configure_group_registry(group: &str, with: &[&str]) -> (TempDir, TempDir) {
+    let registry = TempDir::new().unwrap();
+    write_group_registry(registry.path(), group);
+
+    let project = TempDir::new().unwrap();
+    std::fs::write(project.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
+
+    let mut args = vec![
+        "registry".to_string(),
+        "add".to_string(),
+        "my-kit".to_string(),
+        registry.path().to_string_lossy().to_string(),
+    ];
+    for group in with {
+        args.push("--with".to_string());
+        args.push((*group).to_string());
+    }
+
+    copit_cmd()
+        .args(&args)
+        .current_dir(project.path())
+        .assert()
+        .success();
+
+    (project, registry)
+}
+
+#[test]
+fn info_names_the_groups_a_component_publishes_and_what_they_bring() {
+    let (project, _registry) = project_with_group_registry(TESTS_GROUP);
+
+    copit_cmd()
+        .args(["info", "@my-kit/notify"])
+        .current_dir(project.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("--with"))
+        .stdout(predicates::str::contains(
+            "tests: 1 file, requires testing, packages pytest>=8",
+        ));
+}
+
+#[test]
+fn a_registry_can_default_every_component_to_a_group() {
+    let (project, _registry) = configure_group_registry(TESTS_GROUP, &["tests"]);
+    let root = project.path();
+
+    let config = std::fs::read_to_string(root.join("copit.toml")).unwrap();
+    assert!(config.contains("optional = [\"tests\"]"), "{config}");
+
+    // No --with on the command line, so the registry's groups apply.
+    copit_cmd()
+        .args(["add", "@my-kit/notify", "-y"])
+        .current_dir(root)
+        .assert()
+        .success();
+
+    assert!(root
+        .join("app/components/notify/tests/test_notify.py")
+        .exists());
+    assert!(root.join("app/components/testing/__init__.py").exists());
+}
+
+#[test]
+fn add_with_overrides_the_registry_default_rather_than_adding_to_it() {
+    // `--with docs` on a registry that defaults to tests must install docs only, or
+    // there would be no way to opt out of a default for one component.
+    let group = r#"{
+        "include": ["tests/test_notify.py"],
+        "requires": ["testing"]
+      },
+      "docs": ["tests/test_notify.py"]"#;
+    let (project, _registry) = configure_group_registry(group, &["tests"]);
+    let root = project.path();
+
+    copit_cmd()
+        .args(["add", "@my-kit/notify", "--with", "docs", "-y"])
+        .current_dir(root)
+        .assert()
+        .success();
+
+    assert!(!root.join("app/components/testing").exists());
+
+    let config = std::fs::read_to_string(root.join("copit.toml")).unwrap();
+    assert!(config.contains("optional = [\"docs\"]"), "{config}");
+}
+
+#[test]
+fn no_optional_opts_one_component_out_of_a_registry_default() {
+    let (project, _registry) = configure_group_registry(TESTS_GROUP, &["tests"]);
+    let root = project.path();
+
+    copit_cmd()
+        .args(["add", "@my-kit/notify", "--no-optional", "-y"])
+        .current_dir(root)
+        .assert()
+        .success();
+
+    assert!(!root.join("app/components/notify/tests").exists());
+    assert!(!root.join("app/components/testing").exists());
+
+    // The empty list is what distinguishes "deliberately none" from "never recorded",
+    // so an update must not quietly re-apply the registry's groups.
+    let config = std::fs::read_to_string(root.join("copit.toml")).unwrap();
+    assert!(config.contains("optional = []"), "{config}");
+
+    copit_cmd()
+        .args(["update", "app/components/notify"])
+        .current_dir(root)
+        .assert()
+        .success();
+
+    assert!(!root.join("app/components/notify/tests").exists());
+    assert!(!root.join("app/components/testing").exists());
+}
+
+#[test]
+fn no_optional_is_rejected_on_a_plain_source() {
+    let dir = TempDir::new().unwrap();
+    std::fs::write(dir.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
+
+    copit_cmd()
+        .args(["add", "https://example.com/x.txt", "--no-optional"])
+        .current_dir(dir.path())
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("only applies to registry"));
+}
+
+#[test]
+fn a_registry_group_no_component_publishes_is_rejected_when_configured() {
+    let registry = TempDir::new().unwrap();
+    write_group_registry(registry.path(), TESTS_GROUP);
+
+    let project = TempDir::new().unwrap();
+    std::fs::write(project.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
+
+    copit_cmd()
+        .args([
+            "registry",
+            "add",
+            "my-kit",
+            &registry.path().to_string_lossy(),
+            "--with",
+            "docs",
+        ])
+        .current_dir(project.path())
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("no optional group 'docs'"));
+}
+
+#[test]
+fn a_registry_group_applies_to_an_entry_that_recorded_none() {
+    // Turning the default on later has to reach components installed before it, the
+    // same way adding a variant does.
+    let (project, registry) = project_with_group_registry(TESTS_GROUP);
+    let root = project.path();
+
+    copit_cmd()
+        .args(["add", "@my-kit/notify", "-y"])
+        .current_dir(root)
+        .assert()
+        .success();
+    assert!(!root.join("app/components/testing").exists());
+
+    copit_cmd()
+        .args([
+            "registry",
+            "add",
+            "my-kit",
+            &registry.path().to_string_lossy(),
+            "--with",
+            "tests",
+        ])
+        .current_dir(root)
+        .assert()
+        .success();
+
+    copit_cmd()
+        .args(["update", "app/components/notify"])
+        .current_dir(root)
+        .assert()
+        .success();
+
+    assert!(root
+        .join("app/components/notify/tests/test_notify.py")
+        .exists());
+    assert!(root.join("app/components/testing/__init__.py").exists());
+}
+
+#[test]
+fn a_group_requirement_stays_out_without_the_group() {
+    // Putting the harness in the component's own `requires` instead would copy it into
+    // every project, for tests that were never installed.
+    let (project, _registry) = project_with_group_registry(TESTS_GROUP);
+
+    copit_cmd()
+        .args(["add", "@my-kit/notify", "-y"])
+        .current_dir(project.path())
+        .assert()
+        .success();
+
+    assert!(project.path().join("app/components/notify").exists());
+    assert!(!project.path().join("app/components/testing").exists());
+}
+
+#[test]
+fn a_group_requirement_is_installed_with_the_group() {
+    let (project, _registry) = project_with_group_registry(TESTS_GROUP);
+
+    copit_cmd()
+        .args(["add", "@my-kit/notify", "--with", "tests", "-y"])
+        .current_dir(project.path())
+        .assert()
+        .success();
+
+    let root = project.path();
+    assert!(root
+        .join("app/components/notify/tests/test_notify.py")
+        .exists());
+    assert!(root.join("app/components/testing/__init__.py").exists());
+
+    let config = std::fs::read_to_string(root.join("copit.toml")).unwrap();
+    assert!(config.contains("optional = [\"tests\"]"), "{config}");
+    assert!(config.contains("component_version = \"0.2.0\""), "{config}");
+}
+
+#[test]
+fn no_deps_leaves_a_group_requirement_out() {
+    let (project, _registry) = project_with_group_registry(TESTS_GROUP);
+
+    copit_cmd()
+        .args([
+            "add",
+            "@my-kit/notify",
+            "--with",
+            "tests",
+            "--no-deps",
+            "-y",
+        ])
+        .current_dir(project.path())
+        .assert()
+        .success();
+
+    assert!(project
+        .path()
+        .join("app/components/notify/tests/test_notify.py")
+        .exists());
+    assert!(!project.path().join("app/components/testing").exists());
+}
+
+#[test]
+fn a_group_package_is_listed_only_when_the_group_is_selected() {
+    let (project, _registry) = project_with_group_registry(TESTS_GROUP);
+
+    copit_cmd()
+        .args(["add", "@my-kit/notify", "--dry-run"])
+        .current_dir(project.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("pytest>=8").not());
+
+    copit_cmd()
+        .args(["add", "@my-kit/notify", "--with", "tests", "--dry-run"])
+        .current_dir(project.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("pytest>=8"));
+}
+
+#[test]
+fn a_group_written_as_a_bare_file_list_still_installs() {
+    let (project, _registry) = project_with_group_registry(r#"["tests/test_notify.py"]"#);
+
+    copit_cmd()
+        .args(["add", "@my-kit/notify", "--with", "tests", "-y"])
+        .current_dir(project.path())
+        .assert()
+        .success();
+
+    assert!(project
+        .path()
+        .join("app/components/notify/tests/test_notify.py")
+        .exists());
+    assert!(!project.path().join("app/components/testing").exists());
+}
+
+#[test]
+fn an_update_restores_a_group_file_deleted_locally() {
+    let (project, _registry) = project_with_group_registry(TESTS_GROUP);
+    let root = project.path();
+
+    copit_cmd()
+        .args(["add", "@my-kit/notify", "--with", "tests", "-y"])
+        .current_dir(root)
+        .assert()
+        .success();
+
+    let test_file = root.join("app/components/notify/tests/test_notify.py");
+    std::fs::remove_file(&test_file).unwrap();
+
+    copit_cmd()
+        .args(["update", "app/components/notify"])
+        .current_dir(root)
+        .assert()
+        .success();
+
+    // Inferring the selection from disk lost the group the moment its files went away.
+    assert!(test_file.exists());
+}
+
+#[test]
+fn an_entry_without_a_recorded_group_still_refreshes_what_is_on_disk() {
+    // Entries predating `optional` have no record of the selection, so they fall back
+    // to refreshing the optional files already present.
+    let (project, _registry) = project_with_group_registry(TESTS_GROUP);
+    let root = project.path();
+
+    copit_cmd()
+        .args(["add", "@my-kit/notify", "--with", "tests", "-y"])
+        .current_dir(root)
+        .assert()
+        .success();
+
+    let config = std::fs::read_to_string(root.join("copit.toml"))
+        .unwrap()
+        .replace("optional = [\"tests\"]\n", "");
+    std::fs::write(root.join("copit.toml"), config).unwrap();
+
+    let test_file = root.join("app/components/notify/tests/test_notify.py");
+    std::fs::write(&test_file, "stale").unwrap();
+
+    copit_cmd()
+        .args(["update", "app/components/notify", "--overwrite"])
+        .current_dir(root)
+        .assert()
+        .success();
+
+    assert_eq!(
+        std::fs::read_to_string(&test_file).unwrap(),
+        "import testing"
+    );
+}
+
+#[test]
+fn a_group_requirement_added_in_a_later_index_is_installed_on_update() {
+    // The component was complete when it was installed and is not after the registry
+    // moves its tests onto a shared harness.
+    let (project, registry) = project_with_group_registry(r#"["tests/test_notify.py"]"#);
+    let root = project.path();
+
+    copit_cmd()
+        .args(["add", "@my-kit/notify", "--with", "tests", "-y"])
+        .current_dir(root)
+        .assert()
+        .success();
+    assert!(!root.join("app/components/testing").exists());
+
+    write_group_registry(registry.path(), TESTS_GROUP);
+
+    copit_cmd()
+        .args(["update", "app/components/notify"])
+        .current_dir(root)
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("now requires: testing"));
+
+    assert!(root.join("app/components/testing/__init__.py").exists());
+
+    let config = std::fs::read_to_string(root.join("copit.toml")).unwrap();
+    assert!(
+        config.contains("component = \"my-kit:testing\""),
+        "{config}"
+    );
+}
+
+#[test]
+fn an_update_reports_the_component_version_it_moved_to() {
+    let (project, registry) = project_with_group_registry(TESTS_GROUP);
+    let root = project.path();
+
+    copit_cmd()
+        .args(["add", "@my-kit/notify", "-y"])
+        .current_dir(root)
+        .assert()
+        .success();
+
+    let index = std::fs::read_to_string(registry.path().join(INDEX_FILE))
+        .unwrap()
+        .replace("\"version\": \"0.2.0\"", "\"version\": \"0.3.0\"");
+    std::fs::write(registry.path().join(INDEX_FILE), index).unwrap();
+
+    copit_cmd()
+        .args(["update", "app/components/notify"])
+        .current_dir(root)
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("0.2.0 -> 0.3.0"));
+
+    let config = std::fs::read_to_string(root.join("copit.toml")).unwrap();
+    assert!(config.contains("component_version = \"0.3.0\""), "{config}");
+}
+
 #[test]
 fn registry_only_flags_are_rejected_on_a_plain_source() {
     let dir = TempDir::new().unwrap();

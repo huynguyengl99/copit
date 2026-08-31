@@ -97,6 +97,7 @@ Examples:
 * `--no-packages` — Do not install package dependencies
 * `--variant <VARIANTS>` — Registry variant to select, overriding copit.toml (repeatable)
 * `--with <WITH>` — Also copy an optional file group, e.g. `--with tests` (repeatable)
+* `--no-optional` — Install no optional groups, ignoring the registry's configured `optional`
 
 
 
@@ -245,6 +246,7 @@ Examples:
 * `--to <TO>` — Target directory for this registry's components
 * `--index <INDEX>` — Index filename within the source; defaults to `copit-registry.json`
 * `--variant <VARIANTS>` — Registry-defined variant to select (repeatable)
+* `--with <WITH>` — Optional file group every component of this registry installs, e.g. `--with tests` (repeatable). `--with` on `add` overrides it
 * `--package-manager <PACKAGE_MANAGER>` — Package manager to use; detected when omitted. Use `none` to never install
 
 

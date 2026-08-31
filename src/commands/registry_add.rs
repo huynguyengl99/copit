@@ -62,6 +62,19 @@ async fn install_from(
         cmd.variants.clone()
     };
 
+    // Recorded on the entry so `update` reproduces the decision rather than
+    // re-applying whatever the registry configures by then.
+    let recorded: Option<Vec<String>> = if cmd.no_optional {
+        Some(Vec::new())
+    } else if !cmd.with.is_empty() {
+        Some(cmd.with.clone())
+    } else if !registry.optional.is_empty() {
+        Some(registry.optional.clone())
+    } else {
+        None
+    };
+    let optional = recorded.clone().unwrap_or_default();
+
     let installed = config::installed_components(cfg, registry_name);
 
     let deps = if cmd.no_deps {
@@ -69,7 +82,7 @@ async fn install_from(
     } else {
         Deps::Resolve
     };
-    let plan = index.plan(requested, &variants, &cmd.with, &installed, deps)?;
+    let plan = index.plan(requested, &variants, &optional, &installed, deps)?;
 
     if plan.components.is_empty() {
         println!("Nothing to do: already installed.");
@@ -100,7 +113,7 @@ async fn install_from(
         &plan,
         &target,
         &variants,
-        &cmd.with,
+        &optional,
         display_manager,
         cmd.no_packages,
     );
@@ -121,8 +134,10 @@ async fn install_from(
         index: &index,
         target: &target,
         variants: &variants,
+        optional: recorded.as_deref(),
         licenses_dir: cfg.licenses_dir.as_deref(),
-        cmd,
+        no_license: cmd.no_license,
+        freeze: cmd.freeze,
         settings,
     };
 
@@ -239,27 +254,37 @@ fn confirm(plan: &InstallPlan) -> Result<bool> {
 }
 
 /// Everything one install shares across its components.
-struct Install<'a> {
-    registry_name: &'a str,
-    registry_source: &'a str,
-    index: &'a RegistryIndex,
-    target: &'a str,
-    variants: &'a [String],
-    licenses_dir: Option<&'a str>,
-    cmd: &'a AddCommand,
-    settings: &'a ResolvedSettings,
+///
+/// Resolved values rather than the originating command, so `update` can reuse it.
+pub(super) struct Install<'a> {
+    pub registry_name: &'a str,
+    pub registry_source: &'a str,
+    pub index: &'a RegistryIndex,
+    pub target: &'a str,
+    pub variants: &'a [String],
+    /// `Some([])` is an explicit `--no-optional`, distinct from nothing recorded.
+    pub optional: Option<&'a [String]>,
+    pub licenses_dir: Option<&'a str>,
+    pub no_license: bool,
+    pub freeze: bool,
+    pub settings: &'a ResolvedSettings,
 }
 
 /// Copy one component, reusing the normal GitHub/HTTP fetch path.
-async fn copy_component(install: &Install<'_>, planned: &PlannedComponent) -> Result<()> {
+pub(super) async fn copy_component(
+    install: &Install<'_>,
+    planned: &PlannedComponent,
+) -> Result<()> {
     let Install {
         registry_name,
         registry_source,
         index,
         target,
         variants,
+        optional,
         licenses_dir,
-        cmd,
+        no_license,
+        freeze,
         settings,
     } = install;
     let component = &planned.component;
@@ -329,7 +354,7 @@ async fn copy_component(install: &Install<'_>, planned: &PlannedComponent) -> Re
         println!("  {}: {} file(s) -> {}", component.name, written, track_key);
     }
 
-    if !cmd.no_license {
+    if !no_license {
         common::write_license_files(&fetched.license_files, &track_path, target, *licenses_dir)?;
     }
 
@@ -355,12 +380,24 @@ async fn copy_component(install: &Install<'_>, planned: &PlannedComponent) -> Re
         &source_string,
         version_ref.as_deref(),
         commit.as_deref(),
-        cmd.freeze.then_some(true),
-        cmd.no_license.then_some(true),
+        freeze.then_some(true),
+        no_license.then_some(true),
     )?;
-    config::set_source_component(&track_key, &backlink, variants)?;
+    config::set_source_component(
+        &track_key,
+        &backlink,
+        component_version(component),
+        variants,
+        *optional,
+    )?;
 
     Ok(())
+}
+
+/// A component's version, or `None` when the registry publishes none, so an index
+/// without versions does not litter `copit.toml` with empty strings.
+pub(super) fn component_version(component: &crate::registry::Component) -> Option<&str> {
+    (!component.version.is_empty()).then_some(component.version.as_str())
 }
 
 /// Directory a component is copied into.

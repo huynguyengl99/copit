@@ -97,6 +97,7 @@ pub async fn add(cmd: &RegistryAddCommand) -> Result<()> {
         .with_context(|| format!("Could not read a registry at '{}'", cmd.source))?;
 
     index.check_variants(&cmd.variants)?;
+    index.check_optional(&cmd.with)?;
 
     if let Some(manager) = &cmd.package_manager {
         if manager != "none" && installers::by_name(manager).is_none() {
@@ -128,6 +129,7 @@ pub async fn add(cmd: &RegistryAddCommand) -> Result<()> {
         index: cmd.index.clone(),
         target,
         variants: cmd.variants.clone(),
+        optional: cmd.with.clone(),
         package_manager: cmd.package_manager.clone(),
     };
     config::upsert_registry(&cmd.name, &entry)?;
@@ -141,6 +143,9 @@ pub async fn add(cmd: &RegistryAddCommand) -> Result<()> {
     );
     if !cmd.variants.is_empty() {
         println!("  variants: {}", cmd.variants.join(", "));
+    }
+    if !cmd.with.is_empty() {
+        println!("  optional: {}", cmd.with.join(", "));
     }
     println!("\nInstall a component with:");
     if let Some(first) = index.components.keys().next() {
@@ -169,6 +174,9 @@ pub fn list() -> Result<()> {
         }
         if !registry.variants.is_empty() {
             println!("  variants: {}", registry.variants.join(", "));
+        }
+        if !registry.optional.is_empty() {
+            println!("  optional: {}", registry.optional.join(", "));
         }
         if let Some(manager) = &registry.package_manager {
             println!("  packages: {manager}");
@@ -250,9 +258,25 @@ pub async fn info(cmd: &InfoCommand) -> Result<()> {
         println!("  requires:  {}", component.requires.join(", "));
     }
 
-    let packages = component.packages_for(variants);
+    // No group is selected when browsing.
+    let packages = component.packages_for(variants, &[]);
     if !packages.is_empty() {
         println!("  packages:  {}", packages.join(", "));
+    }
+
+    if !component.optional.is_empty() {
+        println!("\n  optional groups (copit add --with <name>):");
+        for (name, group) in &component.optional {
+            let files = group.include().len();
+            let mut detail = vec![format!("{files} file{}", if files == 1 { "" } else { "s" })];
+            if !group.requires().is_empty() {
+                detail.push(format!("requires {}", group.requires().join(", ")));
+            }
+            if !group.dependencies().is_empty() {
+                detail.push(format!("packages {}", group.dependencies().join(", ")));
+            }
+            println!("    {name}: {}", detail.join(", "));
+        }
     }
 
     let files = component.files_for(variants);

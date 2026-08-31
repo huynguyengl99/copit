@@ -4,6 +4,7 @@
 //! version ref.
 
 use anyhow::{bail, Context, Result};
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use crate::cli::UpdateCommand;
@@ -129,15 +130,31 @@ async fn update_component(
         &entry.variants
     };
 
-    let published: std::collections::HashSet<String> =
-        component.files_for(variants).into_iter().collect();
+    // Only an entry that recorded nothing at all picks up the registry's groups, which
+    // is how turning `optional` on reaches installs that predate it.
+    let recorded: Option<Vec<String>> = entry
+        .optional
+        .clone()
+        .or_else(|| (!registry.optional.is_empty()).then(|| registry.optional.clone()));
+    let optional: &[String] = recorded.as_deref().unwrap_or_default();
 
-    // Optional files are refreshed only when the user opted into them, so a
-    // `--with tests` install stays current. Anything in neither set is never written:
-    // otherwise a file that merely happens to exist locally (a build artefact, or the
-    // user's own addition) would be silently overwritten from the registry.
-    let optional: std::collections::HashSet<String> =
-        component.optional.values().flatten().cloned().collect();
+    let published: HashSet<String> = component.files_for(variants).into_iter().collect();
+
+    let selected: HashSet<String> = component.optional_files(optional).into_iter().collect();
+
+    // Entries predating `optional` recorded no selection, so fall back to refreshing
+    // whichever optional files are already on disk. Anything in neither set is never
+    // written: a file that merely exists locally must not be overwritten.
+    let unrecorded: HashSet<String> = if recorded.is_none() {
+        component
+            .optional
+            .values()
+            .flat_map(crate::registry::OptionalGroup::include)
+            .cloned()
+            .collect()
+    } else {
+        HashSet::new()
+    };
 
     let track_path = PathBuf::from(&entry.path);
     let mut updated = 0;
@@ -146,7 +163,8 @@ async fn update_component(
         let dest = track_path.join(within);
         common::validate_no_path_traversal(&dest, &entry.path)?;
 
-        let is_opted_in = optional.contains(within) && dest.exists();
+        let is_opted_in =
+            selected.contains(within) || (unrecorded.contains(within) && dest.exists());
         if !published.contains(within) && !is_opted_in {
             continue;
         }
@@ -169,12 +187,18 @@ async fn update_component(
         updated += 1;
     }
 
+    let version = match entry.component_version.as_deref() {
+        Some(before) if before != component.version => {
+            format!("{before} -> {}", component.version)
+        }
+        _ => component.version.clone(),
+    };
+
     println!(
-        "Updated {} ({} file{}) from @{registry_name}/{component_id} {}",
+        "Updated {} ({} file{}) from @{registry_name}/{component_id} {version}",
         entry.path,
         updated,
         if updated == 1 { "" } else { "s" },
-        component.version
     );
 
     if entry.no_license != Some(true) {
@@ -208,7 +232,102 @@ async fn update_component(
         frozen,
         entry.no_license,
     )?;
-    config::set_source_component(&entry.path, backlink, variants)?;
+    config::set_source_component(
+        &entry.path,
+        backlink,
+        super::registry_add::component_version(component),
+        variants,
+        recorded.as_deref(),
+    )?;
+
+    install_group_requires(
+        registry_name,
+        &registry_source,
+        &index,
+        component,
+        entry,
+        variants,
+        optional,
+        settings,
+        cfg,
+    )
+    .await
+}
+
+/// Install components a selected group requires but the project does not have yet.
+///
+/// A group can declare `requires` in a later index version, so an install that was
+/// complete when it ran no longer is. Packages are only reported, since `update` has
+/// never run a package manager and has no flag to opt out of one.
+#[allow(clippy::too_many_arguments)]
+async fn install_group_requires(
+    registry_name: &str,
+    registry_source: &str,
+    index: &crate::registry::RegistryIndex,
+    component: &crate::registry::Component,
+    entry: &SourceEntry,
+    variants: &[String],
+    optional: &[String],
+    settings: ResolvedSettings,
+    cfg: &config::CopitConfig,
+) -> Result<()> {
+    let required = component.optional_requires(optional);
+    if required.is_empty() {
+        return Ok(());
+    }
+
+    // Not `cfg`: an earlier entry in the same run may have installed it already.
+    let installed = config::installed_components(&config::load_config()?, registry_name);
+    let missing: Vec<String> = required
+        .into_iter()
+        .filter(|id| !installed.contains(id))
+        .collect();
+    if missing.is_empty() {
+        return Ok(());
+    }
+
+    // Beside the requiring component, which is where the original install put them
+    // even when `--to` overrode the configured target.
+    let target = match PathBuf::from(&entry.path).parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => common::portable_display(parent),
+        _ => cfg.target.clone(),
+    };
+    common::validate_install_target(&target)?;
+
+    let plan = index.plan(
+        &missing,
+        variants,
+        optional,
+        &installed,
+        crate::registry::Deps::Resolve,
+    )?;
+
+    println!(
+        "  --with {} now requires: {}",
+        optional.join(", "),
+        missing.join(", ")
+    );
+
+    let install = super::registry_add::Install {
+        registry_name,
+        registry_source,
+        index,
+        target: &target,
+        variants,
+        optional: Some(optional),
+        licenses_dir: cfg.licenses_dir.as_deref(),
+        no_license: entry.no_license == Some(true),
+        freeze: false,
+        settings: &settings,
+    };
+
+    for planned in &plan.components {
+        super::registry_add::copy_component(&install, planned).await?;
+    }
+
+    if !plan.packages.is_empty() {
+        println!("  Packages needed: {}", plan.packages.join(", "));
+    }
 
     Ok(())
 }

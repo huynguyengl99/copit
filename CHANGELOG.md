@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2026-08-31
+
+### Features
+
+- Resolve the components and packages an optional group needs ([b968272](https://github.com/huynguyengl99/copit/commit/b968272ef6324eece8cbe6ff77f771c832f3115e))
+
 ## [0.5.0] - 2026-08-11
 
 ### Features

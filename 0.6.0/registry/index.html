@@ -1,0 +1,1610 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Copy reusable source code from GitHub repos, HTTP URLs, and ZIP archives into your project">
+      
+      
+      
+        <link rel="canonical" href="https://huynguyengl99.github.io/copit/0.6.0/registry/">
+      
+      
+        <link rel="prev" href="../commands/">
+      
+      
+        <link rel="next" href="../configuration/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Registries - copit</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#registries" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="copit" class="md-header__button md-logo" aria-label="copit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            copit
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Registries
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/huynguyengl99/copit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    huynguyengl99/copit
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../commands/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Commands
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Registries
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../configuration/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Configuration
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../contributing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Contributing
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../changelog/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Changelog
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="copit" class="md-nav__button md-logo" aria-label="copit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    copit
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/huynguyengl99/copit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    huynguyengl99/copit
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Registries
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Registries
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#for-users" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        For users
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="For users">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configure-a-registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configure a registry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#install-components" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install components
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inspect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inspect
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#update" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Update
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#for-registry-authors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        For registry authors
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="For registry authors">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#copit-registryjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        copit-registry.json
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#top-level-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Top-level fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#component-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Component fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-an-optional-group-needs-to-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What an optional group needs to work
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#restricting-a-component-to-a-variant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Restricting a component to a variant
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#materialise-files-at-build-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Materialise files at build time
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#three-rules-worth-knowing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Three rules worth knowing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#variants" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Variants
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#local-development" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Local development
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#copittoml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        copit.toml
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#package-managers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Package managers
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#for-users" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        For users
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="For users">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configure-a-registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configure a registry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#install-components" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install components
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inspect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inspect
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#update" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Update
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#for-registry-authors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        For registry authors
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="For registry authors">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#copit-registryjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        copit-registry.json
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#top-level-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Top-level fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#component-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Component fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-an-optional-group-needs-to-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What an optional group needs to work
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#restricting-a-component-to-a-variant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Restricting a component to a variant
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#materialise-files-at-build-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Materialise files at build time
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#three-rules-worth-knowing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Three rules worth knowing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#variants" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Variants
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#local-development" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Local development
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#copittoml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        copit.toml
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#package-managers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Package managers
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="registries">Registries</h1>
+<p>A <strong>registry</strong> is a repository that publishes named <strong>components</strong>: folders of source
+code a user installs by id rather than by path.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>copit<span class="w"> </span>registry<span class="w"> </span>add<span class="w"> </span>my-kit<span class="w"> </span>github:owner/repo@v1.0.0<span class="w"> </span>--to<span class="w"> </span>app/components
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>copit<span class="w"> </span>add<span class="w"> </span>@my-kit/auth
+</code></pre></div>
+<p>copit resolves what that component requires, copies each one, and hands any package
+dependencies to whatever package manager the project already uses.</p>
+<p>Nothing about the format is tied to a language or framework. A registry declares its
+<code>ecosystem</code> and copit maps that to a package manager.</p>
+<div class="admonition note">
+<p class="admonition-title">Data, never code</p>
+<p>An index is fetched over the network, so it is treated as <strong>data</strong>. Components
+declare files, dependencies and text; they cannot declare commands for copit to run.
+Anything else would hand every registry author a shell on their users' machines.</p>
+</div>
+<hr />
+<h2 id="for-users">For users</h2>
+<h3 id="configure-a-registry">Configure a registry</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>copit<span class="w"> </span>registry<span class="w"> </span>add<span class="w"> </span>&lt;name&gt;<span class="w"> </span>&lt;source&gt;<span class="w"> </span><span class="o">[</span>--to<span class="w"> </span>&lt;dir&gt;<span class="o">]</span><span class="w"> </span><span class="o">[</span>--index<span class="w"> </span>&lt;file&gt;<span class="o">]</span><span class="w"> </span><span class="o">[</span>--variant<span class="w"> </span>&lt;name&gt;<span class="o">]</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">                  </span><span class="o">[</span>--package-manager<span class="w"> </span>&lt;name&gt;<span class="o">]</span>
+</code></pre></div>
+<p><code>&lt;source&gt;</code> is where the registry lives: <code>github:owner/repo@ref</code>, or a <strong>local
+directory</strong> while you are developing one. The index is read immediately, so a bad source
+fails here rather than at first install.</p>
+<p>If the index suggests an <code>install.target</code> and you did not pass <code>--to</code>, that suggestion is
+recorded as <code>registries.&lt;name&gt;.target</code> in your <code>copit.toml</code>. A registry never picks the
+destination at install time: the recorded value is yours to edit, and any target that is
+absolute or escapes the project is rejected.</p>
+<p>A registry name is used in <code>@name/component</code> and recorded against every component it
+installs, so it cannot contain <code>:</code>, <code>/</code>, <code>@</code> or whitespace.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>copit<span class="w"> </span>registry<span class="w"> </span>list
+</code></pre></div>
+<h3 id="install-components">Install components</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>copit<span class="w"> </span>add<span class="w"> </span>@my-kit/auth<span class="w">            </span><span class="c1"># with a confirmation prompt</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>copit<span class="w"> </span>add<span class="w"> </span>@my-kit/cache<span class="w"> </span>-y<span class="w">        </span><span class="c1"># accept the plan</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>copit<span class="w"> </span>add<span class="w"> </span>@my-kit/cache<span class="w"> </span>--dry-run<span class="w"> </span><span class="c1"># show the plan and stop</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-y</code>, <code>--yes</code></td>
+<td>Accept the plan without prompting</td>
+</tr>
+<tr>
+<td><code>--dry-run</code></td>
+<td>Print the plan and exit</td>
+</tr>
+<tr>
+<td><code>--no-deps</code></td>
+<td>Install only what was named, not what it requires</td>
+</tr>
+<tr>
+<td><code>--no-packages</code></td>
+<td>Copy files but do not install package dependencies</td>
+</tr>
+<tr>
+<td><code>--variant &lt;name&gt;</code></td>
+<td>Override the configured variants</td>
+</tr>
+<tr>
+<td><code>--with &lt;group&gt;</code></td>
+<td>Install an optional group, e.g. <code>--with tests</code>. Overrides the registry's <code>optional</code></td>
+</tr>
+<tr>
+<td><code>--no-optional</code></td>
+<td>Install no optional groups, overriding the registry's <code>optional</code></td>
+</tr>
+<tr>
+<td><code>--to &lt;dir&gt;</code></td>
+<td>Override the target directory</td>
+</tr>
+</tbody>
+</table>
+<p>Dependencies are installed <strong>before</strong> the components that need them, so a component can
+import one that is already on disk. A component already tracked in <code>copit.toml</code> is
+skipped unless you ask for it by name again, and copit refuses to install over a path
+that another source already owns.</p>
+<p>License files from the registry's root are copied alongside the component, exactly as
+they are for a plain <code>copit add</code>. Pass <code>--no-license</code> to skip them.</p>
+<p>Without a terminal there is nothing to confirm, so <code>copit add @my-kit/auth</code> fails rather
+than doing nothing. In CI, pass <code>-y</code>.</p>
+<h3 id="inspect">Inspect</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>copit<span class="w"> </span>search<span class="w"> </span>@my-kit<span class="w">         </span><span class="c1"># list every component</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>copit<span class="w"> </span>search<span class="w"> </span>@my-kit<span class="w"> </span>cache<span class="w">   </span><span class="c1"># match ids, titles, descriptions, tags</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>copit<span class="w"> </span>info<span class="w"> </span>@my-kit/auth<span class="w">      </span><span class="c1"># deps, packages, files</span>
+</code></pre></div>
+<h3 id="update">Update</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>copit<span class="w"> </span>update<span class="w"> </span>app/components/auth
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>copit<span class="w"> </span>update<span class="w"> </span>app/components/auth<span class="w"> </span>--ref<span class="w"> </span>v1.1.0
+</code></pre></div>
+<p>A component is re-fetched through its registry, so only the files the index publishes are
+written, so metadata and excluded paths stay out. <code>--ref</code> moves the <strong>registry</strong> ref, since
+the index and the component have to come from the same commit; it applies to GitHub
+registries only and errors rather than being ignored elsewhere. The variants selected at
+install time are recorded per entry and reused here, so <code>--variant</code> at install time keeps
+working on every later update. Files listed in <code>excludes</code> are preserved, and <code>--backup</code>
+keeps the incoming version as <code>.orig</code>. <code>copit update-all</code> takes the same path.</p>
+<hr />
+<h2 id="for-registry-authors">For registry authors</h2>
+<p>Publish a generated <code>copit-registry.json</code> at the root of your repository. copit reads that one
+file, so an install is a single request and a tag is self-describing.</p>
+<p>The name is namespaced deliberately: <code>registry.json</code> is used by other tools (shadcn/ui
+among them), and a repository can plausibly be more than one kind of registry. Publish
+it elsewhere if you prefer, and point copit at it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">[registries.my-kit]</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">source</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"github:owner/repo@v1.0.0"</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">index</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"registry/index.json"</span><span class="w">    </span><span class="c1"># defaults to copit-registry.json</span>
+</code></pre></div>
+<h3 id="copit-registryjson"><code>copit-registry.json</code></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"my-kit"</span><span class="p">,</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span><span class="nt">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"My Kit"</span><span class="p">,</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">  </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Composable components for …"</span><span class="p">,</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">  </span><span class="nt">"source"</span><span class="p">:</span><span class="w"> </span><span class="s2">"github:owner/repo"</span><span class="p">,</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">  </span><span class="nt">"homepage"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://example.com"</span><span class="p">,</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">  </span><span class="nt">"ecosystem"</span><span class="p">:</span><span class="w"> </span><span class="s2">"python"</span><span class="p">,</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">  </span><span class="nt">"variants"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"sqlite"</span><span class="p">,</span><span class="w"> </span><span class="s2">"postgres"</span><span class="p">],</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="w">  </span><span class="nt">"install"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="w">    </span><span class="nt">"target"</span><span class="p">:</span><span class="w"> </span><span class="s2">"app/components"</span><span class="p">,</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="w">    </span><span class="nt">"package_marker"</span><span class="p">:</span><span class="w"> </span><span class="s2">"__init__.py"</span><span class="p">,</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="w">    </span><span class="nt">"exclude"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"component.yaml"</span><span class="p">],</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="w">    </span><span class="nt">"optional"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"tests"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"tests/**"</span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="w">  </span><span class="nt">"components"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="w">    </span><span class="nt">"auth"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a><span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"auth"</span><span class="p">,</span>
+<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a><span class="w">      </span><span class="nt">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Auth"</span><span class="p">,</span>
+<a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a><span class="w">      </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Session handling with a pluggable store."</span><span class="p">,</span>
+<a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a><span class="w">      </span><span class="nt">"tier"</span><span class="p">:</span><span class="w"> </span><span class="s2">"core"</span><span class="p">,</span>
+<a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a><span class="w">      </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"0.1.0"</span><span class="p">,</span>
+<a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a><span class="w">      </span><span class="nt">"path"</span><span class="p">:</span><span class="w"> </span><span class="s2">"components/auth"</span><span class="p">,</span>
+<a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a><span class="w">      </span><span class="nt">"tags"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"auth"</span><span class="p">,</span><span class="w"> </span><span class="s2">"sessions"</span><span class="p">],</span>
+<a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a><span class="w">      </span><span class="nt">"requires"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"logger"</span><span class="p">],</span>
+<a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a><span class="w">      </span><span class="nt">"dependencies"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"my-runtime&gt;=0.1"</span><span class="p">],</span>
+<a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a><span class="w">      </span><span class="nt">"variants"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a><span class="w">        </span><span class="nt">"sqlite"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"dependencies"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"sqlite-driver&gt;=1.0"</span><span class="p">],</span><span class="w"> </span><span class="nt">"include"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"stores/sqlite.py"</span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-7-29" name="__codelineno-7-29" href="#__codelineno-7-29"></a><span class="w">      </span><span class="p">},</span>
+<a id="__codelineno-7-30" name="__codelineno-7-30" href="#__codelineno-7-30"></a><span class="w">      </span><span class="nt">"files"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"__init__.py"</span><span class="p">,</span><span class="w"> </span><span class="s2">"sessions.py"</span><span class="p">,</span><span class="w"> </span><span class="s2">"mixins.py"</span><span class="p">],</span>
+<a id="__codelineno-7-31" name="__codelineno-7-31" href="#__codelineno-7-31"></a><span class="w">      </span><span class="nt">"optional"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-32" name="__codelineno-7-32" href="#__codelineno-7-32"></a><span class="w">        </span><span class="nt">"tests"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-33" name="__codelineno-7-33" href="#__codelineno-7-33"></a><span class="w">          </span><span class="nt">"include"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"tests/test_auth.py"</span><span class="p">],</span>
+<a id="__codelineno-7-34" name="__codelineno-7-34" href="#__codelineno-7-34"></a><span class="w">          </span><span class="nt">"requires"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"testing"</span><span class="p">],</span>
+<a id="__codelineno-7-35" name="__codelineno-7-35" href="#__codelineno-7-35"></a><span class="w">          </span><span class="nt">"dependencies"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"pytest&gt;=8"</span><span class="p">]</span>
+<a id="__codelineno-7-36" name="__codelineno-7-36" href="#__codelineno-7-36"></a><span class="w">        </span><span class="p">}</span>
+<a id="__codelineno-7-37" name="__codelineno-7-37" href="#__codelineno-7-37"></a><span class="w">      </span><span class="p">}</span>
+<a id="__codelineno-7-38" name="__codelineno-7-38" href="#__codelineno-7-38"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-7-39" name="__codelineno-7-39" href="#__codelineno-7-39"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-7-40" name="__codelineno-7-40" href="#__codelineno-7-40"></a><span class="p">}</span>
+</code></pre></div>
+<p>Validate yours against <a href="../registry.schema.json"><code>registry.schema.json</code></a> in CI.</p>
+<h3 id="top-level-fields">Top-level fields</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>version</code></td>
+<td>yes</td>
+<td>Index format version. copit refuses versions it does not know</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>yes</td>
+<td>Registry id, used as <code>@name/component</code></td>
+</tr>
+<tr>
+<td><code>title</code></td>
+<td></td>
+<td>Human-readable name</td>
+</tr>
+<tr>
+<td><code>source</code></td>
+<td></td>
+<td>Informational. copit fetches from the source <em>you</em> configured, at the ref you pinned</td>
+</tr>
+<tr>
+<td><code>ecosystem</code></td>
+<td></td>
+<td><code>python</code>, <code>node</code>, <code>rust</code>. Selects the package manager</td>
+</tr>
+<tr>
+<td><code>variants</code></td>
+<td></td>
+<td>Names a component may specialise on</td>
+</tr>
+<tr>
+<td><code>install</code></td>
+<td></td>
+<td>Defaults: <code>target</code> and <code>package_marker</code> are used; <code>exclude</code> and <code>optional</code> are generator-side</td>
+</tr>
+<tr>
+<td><code>components</code></td>
+<td>yes</td>
+<td>Map of id to component</td>
+</tr>
+</tbody>
+</table>
+<h3 id="component-fields">Component fields</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code></td>
+<td>yes</td>
+<td>Must equal the key this component is listed under</td>
+</tr>
+<tr>
+<td><code>path</code></td>
+<td>yes</td>
+<td>Directory within the repository</td>
+</tr>
+<tr>
+<td><code>files</code></td>
+<td></td>
+<td>Exactly what a normal install copies, excludes already applied</td>
+</tr>
+<tr>
+<td><code>requires</code></td>
+<td></td>
+<td>Other components, resolved transitively</td>
+</tr>
+<tr>
+<td><code>dependencies</code></td>
+<td></td>
+<td>Packages for the project's package manager</td>
+</tr>
+<tr>
+<td><code>variants</code></td>
+<td></td>
+<td>Per-variant extra <code>dependencies</code> and <code>include</code> files</td>
+</tr>
+<tr>
+<td><code>only_variants</code></td>
+<td></td>
+<td>Variants this component requires. Empty installs anywhere</td>
+</tr>
+<tr>
+<td><code>optional</code></td>
+<td></td>
+<td>Named groups excluded by default, installed with <code>--with</code>. Must be materialised per component</td>
+</tr>
+<tr>
+<td><code>tier</code></td>
+<td></td>
+<td>Free-form label such as <code>core</code>. copit treats it as opaque</td>
+</tr>
+<tr>
+<td><code>version</code>, <code>title</code>, <code>description</code>, <code>tags</code>, <code>authors</code></td>
+<td></td>
+<td>Shown by <code>search</code> and <code>info</code></td>
+</tr>
+</tbody>
+</table>
+<div class="admonition warning">
+<p class="admonition-title">Optional groups are per component</p>
+<p><code>install.optional</code> is a default for your generator. copit copies only what a
+component lists in its own <code>optional</code> map, so materialise the group into every
+component that ships it. <code>--with &lt;group&gt;</code> errors if no component publishes it.</p>
+</div>
+<h3 id="what-an-optional-group-needs-to-work">What an optional group needs to work</h3>
+<p>A group is a bare list of files, or an object that also declares what those files need:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">"optional"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">"docs"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"docs/auth.md"</span><span class="p">],</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="nt">"tests"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">    </span><span class="nt">"include"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"tests/test_auth.py"</span><span class="p">],</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">    </span><span class="nt">"requires"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"testing"</span><span class="p">],</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">    </span><span class="nt">"dependencies"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"pytest&gt;=8"</span><span class="p">]</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="p">}</span>
+</code></pre></div>
+<p>Both forms are valid in index version 1. <code>requires</code> and <code>dependencies</code> apply <em>only when
+the group is selected</em>, which is what makes a group like <code>tests</code> expressible: copied
+tests that import a shared harness need that harness, and a project that never asked for
+the tests must not get it. The requirement resolves like any other — ordered first,
+transitive, subject to <code>only_variants</code>, skipped by <code>--no-deps</code>.</p>
+<p>Selecting groups, in precedence order:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>copit add … --no-optional</code></td>
+<td>No groups, overriding everything below</td>
+</tr>
+<tr>
+<td><code>copit add … --with tests</code></td>
+<td>Exactly these groups</td>
+</tr>
+<tr>
+<td><code>optional = ["tests"]</code> in <code>[registries.&lt;name&gt;]</code></td>
+<td>Every component of that registry</td>
+</tr>
+</tbody>
+</table>
+<p><code>copit info @my-kit/auth</code> lists what a component publishes. Whichever selection applied
+is recorded on the source entry, so <code>update</code> reproduces it and installs a requirement the
+group gains in a later index version — reporting that requirement's packages rather than
+installing them, since <code>update</code> never runs a package manager.</p>
+<h3 id="restricting-a-component-to-a-variant">Restricting a component to a variant</h3>
+<p><code>variants</code> is additive: it adds files and packages when one is selected, and the
+component installs either way. Some components cannot work that way — one carrying a
+framework's models, migrations and admin has nothing to fall back to. Those declare
+<code>only_variants</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">"django-message-store"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">"only_variants"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"django"</span><span class="p">],</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="nt">"requires"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"room-chat"</span><span class="p">]</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="p">}</span>
+</code></pre></div>
+<p>copit then refuses to install it unless the project selects one of those variants,
+naming what to pass:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>Component '@my-kit/django-message-store' requires variant 'django'.
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>  This project selects: fastapi
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>  Pass --variant django, or set `variants` for this registry in copit.toml.
+</code></pre></div>
+<p>The check covers components pulled in through <code>requires</code> as well, so a restricted
+dependency fails the install rather than landing unusable. Every name must appear in the
+registry's top-level <code>variants</code>; copit rejects an index where it does not, since that
+would make the component uninstallable everywhere.</p>
+<h3 id="materialise-files-at-build-time">Materialise <code>files</code> at build time</h3>
+<p><code>files</code> is the contract: copit copies exactly those paths and nothing else. Resolving
+globs when you generate the index rather than at install time means</p>
+<ul>
+<li>the CLI can show a plan before touching disk,</li>
+<li>a diff of <code>copit-registry.json</code> makes added or removed files reviewable in a pull request,</li>
+<li>and metadata or tests cannot leak into a user's project by accident.</li>
+</ul>
+<h3 id="three-rules-worth-knowing">Three rules worth knowing</h3>
+<p><strong>A component's key and its <code>name</code> must match.</strong> Lookups go through the key, but the
+installed entry records <code>name</code>, so a generator that lets them drift produces components
+that install once and can then never be updated. copit rejects an index where they
+disagree.</p>
+<p><strong>Component directory names are the names users import.</strong> copit copies each component to
+<code>&lt;target&gt;/&lt;basename of path&gt;</code>, so the directory name in your repository becomes the
+module name in theirs. If components import each other, that name has to be valid in
+your language.</p>
+<p><strong>Keep the repository layout identical to the installed layout.</strong> copit installs
+components side by side in one target directory. If your repository nests them, say
+under <code>core/</code> and <code>contrib/</code>, then a relative import between two components needs a
+different depth in your repository than in a user's project, and will break on install.
+Use metadata for grouping instead of directories.</p>
+<h3 id="variants">Variants</h3>
+<p>A variant is a second axis, usually a target framework:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nt">"variants"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">"sqlite"</span><span class="p">:</span><span class="w">   </span><span class="p">{</span><span class="w"> </span><span class="nt">"dependencies"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"sqlite-driver&gt;=1.0"</span><span class="p">],</span><span class="w"> </span><span class="nt">"include"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"stores/sqlite.py"</span><span class="p">]</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="nt">"postgres"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"dependencies"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"pg-driver&gt;=2.0"</span><span class="p">],</span><span class="w">     </span><span class="nt">"include"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"stores/postgres.py"</span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="p">}</span>
+</code></pre></div>
+<p>Variant files are additive: a file listed under a variant that is not selected is not
+copied, unless a selected variant lists it too, so a shared base module can appear under
+several variants. Selection comes from <code>copit.toml</code> or <code>--variant</code>, and whatever was used
+is recorded on the installed entry.</p>
+<h3 id="local-development">Local development</h3>
+<p>Point a registry at a directory to test it before publishing:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>copit<span class="w"> </span>registry<span class="w"> </span>add<span class="w"> </span>my-kit<span class="w"> </span>../my-registry
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>copit<span class="w"> </span>add<span class="w"> </span>@my-kit/auth<span class="w"> </span>--dry-run
+</code></pre></div>
+<p>Same code path users get, minus the network.</p>
+<hr />
+<h2 id="copittoml"><code>copit.toml</code></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">target</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"vendor"</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="k">[registries.my-kit]</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="n">source</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"github:owner/repo@v1.0.0"</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="n">index</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"copit-registry.json"</span><span class="w">  </span><span class="c1"># optional; this is the default</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="n">target</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"app/components"</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="n">variants</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"postgres"</span><span class="p">]</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="n">package_manager</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"uv"</span><span class="w">        </span><span class="c1"># omit to detect; "none" to never install</span>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="k">[[sources]]</span>
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="n">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"app/components/auth"</span>
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a><span class="n">source</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"github:owner/repo@v1.0.0/components/auth"</span>
+<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a><span class="n">component</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"my-kit:auth"</span>
+<a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a><span class="n">variants</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"postgres"</span><span class="p">]</span>
+<a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a><span class="n">ref</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"v1.0.0"</span>
+<a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a><span class="n">copied_at</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"2026-07-30T00:00:00Z"</span>
+</code></pre></div>
+<p>Components are tracked as ordinary <code>[[sources]]</code> entries with a <code>component</code> backlink, so
+<code>update</code>, <code>remove</code>, <code>excludes</code>, <code>--freeze</code> and <code>--backup</code> all work on them unchanged.
+The backlink is also how copit knows which components are already installed when
+resolving dependencies.</p>
+<h2 id="package-managers">Package managers</h2>
+<p>Detected from the project, restricted to the registry's <code>ecosystem</code> so a Python registry
+never installs through npm just because the repository also has a frontend.</p>
+<table>
+<thead>
+<tr>
+<th>Ecosystem</th>
+<th>Detected by</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>python</code></td>
+<td><code>uv.lock</code> / <code>[tool.uv]</code></td>
+<td><code>uv add</code></td>
+</tr>
+<tr>
+<td><code>python</code></td>
+<td><code>poetry.lock</code> / <code>[tool.poetry]</code></td>
+<td><code>poetry add</code></td>
+</tr>
+<tr>
+<td><code>python</code></td>
+<td><code>pdm.lock</code> / <code>[tool.pdm]</code></td>
+<td><code>pdm add</code></td>
+</tr>
+<tr>
+<td><code>python</code></td>
+<td><code>requirements.txt</code></td>
+<td><code>pip install</code></td>
+</tr>
+<tr>
+<td><code>node</code></td>
+<td><code>pnpm-lock.yaml</code></td>
+<td><code>pnpm add</code></td>
+</tr>
+<tr>
+<td><code>node</code></td>
+<td><code>yarn.lock</code></td>
+<td><code>yarn add</code></td>
+</tr>
+<tr>
+<td><code>node</code></td>
+<td><code>package-lock.json</code></td>
+<td><code>npm install</code></td>
+</tr>
+<tr>
+<td><code>rust</code></td>
+<td><code>Cargo.toml</code></td>
+<td><code>cargo add</code></td>
+</tr>
+</tbody>
+</table>
+<p>Lockfile-based managers are checked before <code>pip</code>, because a project on uv often keeps a
+<code>requirements.txt</code> for other tooling and installing outside the lockfile would drift.</p>
+<p>copit never resolves versions itself, it shells out. If the command fails, the files are
+still copied and the failing specs are printed. When nothing is detected, the specs are
+printed for you to install.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

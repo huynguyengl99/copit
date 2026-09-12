@@ -490,3 +490,102 @@ copied_at = "2026-01-01T00:00:00Z"
         "MIT License"
     );
 }
+
+/// A project holding one registry component, with its own target and a license
+/// already written beside it. Mirrors what `copit add @kit/thing` leaves behind.
+fn project_with_registry_component(licenses_dir: Option<&str>) -> TempDir {
+    let dir = TempDir::new().unwrap();
+    let licenses_line = licenses_dir
+        .map(|d| format!("licenses_dir = \"{d}\"\n"))
+        .unwrap_or_default();
+    std::fs::write(
+        dir.path().join("copit.toml"),
+        format!(
+            r#"target = "vendor"
+{licenses_line}
+[registries.my-kit]
+source = "github:owner/repo@v1"
+target = "app/ws_kits"
+
+[[sources]]
+path = "app/ws_kits/ag_ui"
+source = "github:owner/repo@v1/kits/ag_ui"
+ref = "v1"
+copied_at = "2026-01-01T00:00:00Z"
+component = "my-kit:ag-ui"
+"#
+        ),
+    )
+    .unwrap();
+
+    std::fs::create_dir_all(dir.path().join("app/ws_kits/ag_ui")).unwrap();
+    std::fs::write(dir.path().join("app/ws_kits/ag_ui/LICENSE"), "MIT License").unwrap();
+    dir
+}
+
+#[test]
+fn a_registry_component_centralizes_under_its_own_name() {
+    // The registry's target is stripped, not the project's, so the component keeps
+    // its name instead of dragging the whole path along.
+    let dir = project_with_registry_component(None);
+
+    copit_cmd()
+        .args(["licenses-sync", "--licenses-dir", "licenses"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains(
+            "Moved: app/ws_kits/ag_ui/LICENSE -> licenses/ag_ui/LICENSE",
+        ));
+
+    assert!(dir.path().join("licenses/ag_ui/LICENSE").exists());
+    assert!(!dir
+        .path()
+        .join("licenses/app/ws_kits/ag_ui/LICENSE")
+        .exists());
+}
+
+#[test]
+fn a_hand_edited_licenses_dir_still_moves_the_files() {
+    // `licenses_dir` set by hand states an intention, not a fact: the files are
+    // still side by side, and trusting config would report "already in sync".
+    let dir = project_with_registry_component(Some("licenses"));
+
+    copit_cmd()
+        .arg("licenses-sync")
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains(
+            "Moved: app/ws_kits/ag_ui/LICENSE -> licenses/ag_ui/LICENSE",
+        ));
+
+    assert!(dir.path().join("licenses/ag_ui/LICENSE").exists());
+}
+
+#[test]
+fn a_layout_written_before_registry_targets_is_migrated() {
+    // Upgrade path: an older copit centralized using the project target, leaving
+    // licenses/app/ws_kits/ag_ui/LICENSE. Those must be found, not orphaned.
+    let dir = project_with_registry_component(Some("licenses"));
+    std::fs::remove_file(dir.path().join("app/ws_kits/ag_ui/LICENSE")).unwrap();
+    std::fs::create_dir_all(dir.path().join("licenses/app/ws_kits/ag_ui")).unwrap();
+    std::fs::write(
+        dir.path().join("licenses/app/ws_kits/ag_ui/LICENSE"),
+        "MIT License",
+    )
+    .unwrap();
+
+    copit_cmd()
+        .arg("licenses-sync")
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("-> licenses/ag_ui/LICENSE"));
+
+    assert!(dir.path().join("licenses/ag_ui/LICENSE").exists());
+    assert!(!dir
+        .path()
+        .join("licenses/app/ws_kits/ag_ui/LICENSE")
+        .exists());
+}

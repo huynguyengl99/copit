@@ -1042,3 +1042,40 @@ fn a_component_reference_is_not_a_valid_registry_location() {
         .failure()
         .stderr(predicates::str::contains("component reference"));
 }
+
+#[test]
+fn updating_a_component_keeps_its_license_under_its_own_name() {
+    // A component's own directory is not a target. Passing it collapsed every
+    // component's license onto one path, so each update overwrote the last.
+    let (project, _registry) = project_with_registry(&["sqlite"]);
+    let root = project.path();
+
+    copit_cmd()
+        .args(["add", "@my-kit/auth", "-y"])
+        .current_dir(root)
+        .assert()
+        .success();
+
+    copit_cmd()
+        .args(["licenses-sync", "--licenses-dir", "licenses"])
+        .current_dir(root)
+        .assert()
+        .success();
+
+    assert!(root.join("licenses/auth_core/LICENSE").exists());
+    assert!(root.join("licenses/logger/LICENSE").exists());
+
+    copit_cmd()
+        .args(["update", "app/components/auth_core"])
+        .current_dir(root)
+        .assert()
+        .success();
+
+    // The stray licenses/LICENSE is what the collapse produced.
+    assert!(
+        !root.join("licenses/LICENSE").exists(),
+        "update wrote the license to the licenses root"
+    );
+    assert!(root.join("licenses/auth_core/LICENSE").exists());
+    assert!(root.join("licenses/logger/LICENSE").exists());
+}

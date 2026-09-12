@@ -202,10 +202,12 @@ async fn update_component(
     );
 
     if entry.no_license != Some(true) {
+        // The component's own directory is not a target: passing it collapses every
+        // component's licenses onto one path under `licenses_dir`.
         common::write_license_files(
             &fetched.license_files,
             &track_path,
-            &entry.path,
+            &common::target_for_entry(cfg, entry),
             cfg.licenses_dir.as_deref(),
         )?;
     }

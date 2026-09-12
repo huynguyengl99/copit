@@ -79,8 +79,10 @@ pub fn run(cmd: &RemoveCommand) -> Result<()> {
         if let Some(entry) = entries_to_remove.iter().find(|e| &e.path == path) {
             if entry.no_license != Some(true) {
                 let track_path = PathBuf::from(&entry.path);
+                let entry_target = common::target_for_entry(&cfg, entry);
                 common::remove_license_files(
                     &track_path,
+                    &entry_target,
                     &cfg.target,
                     cfg.licenses_dir.as_deref(),
                 )?;

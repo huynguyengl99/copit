@@ -96,9 +96,15 @@ pub fn run(cmd: &LicensesSyncCommand) -> Result<()> {
         }
 
         let track_path = PathBuf::from(&entry.path);
+        let entry_target = super::common::target_for_entry(&cfg, entry);
 
-        let current_dir = license_dir_for(&track_path, &cfg.target, current_licenses_dir);
-        let target_dir = license_dir_for(&track_path, &cfg.target, target_licenses_dir);
+        let current_dir = super::common::existing_license_dir(
+            &track_path,
+            &entry_target,
+            &cfg.target,
+            current_licenses_dir,
+        );
+        let target_dir = license_dir_for(&track_path, &entry_target, target_licenses_dir);
 
         if current_dir == target_dir {
             continue;

@@ -294,11 +294,18 @@ pub fn license_dir_for(track_path: &Path, target: &str, licenses_dir: Option<&st
 pub fn remove_license_files(
     track_path: &Path,
     target: &str,
+    project_target: &str,
     licenses_dir: Option<&str>,
 ) -> Result<()> {
-    use crate::sources::github::LICENSE_NAMES;
+    for license_dir in license_dir_candidates(track_path, target, project_target, licenses_dir) {
+        remove_license_files_in(&license_dir, track_path)?;
+    }
 
-    let license_dir = license_dir_for(track_path, target, licenses_dir);
+    Ok(())
+}
+
+fn remove_license_files_in(license_dir: &Path, track_path: &Path) -> Result<()> {
+    use crate::sources::github::LICENSE_NAMES;
 
     // For directory sources without licenses_dir, the license dir IS the track path.
     // Those license files get removed when the source directory itself is deleted,
@@ -324,7 +331,7 @@ pub fn remove_license_files(
 
     // Clean up empty license directory and ancestors
     if removed_any {
-        let mut dir = Some(license_dir.as_path());
+        let mut dir = Some(license_dir);
         while let Some(d) = dir {
             if d == Path::new("") || d == Path::new(".") {
                 break;
@@ -344,6 +351,79 @@ pub fn remove_license_files(
     }
 
     Ok(())
+}
+
+/// The directory a source was copied into.
+///
+/// A component installed from a registry lives under that registry's own `target`,
+/// which is usually not the project-wide one. Using the project target for it makes
+/// [`license_dir_for`] fail to strip the prefix and keep the whole path.
+pub fn target_for_entry(
+    cfg: &crate::config::CopitConfig,
+    entry: &crate::config::SourceEntry,
+) -> String {
+    entry
+        .component
+        .as_deref()
+        .and_then(|backlink| backlink.rsplit_once(':'))
+        .and_then(|(registry_name, _)| cfg.registries.get(registry_name))
+        .and_then(|registry| registry.target.as_deref())
+        .unwrap_or(&cfg.target)
+        .to_string()
+}
+
+/// Whether a directory holds any recognised license file.
+pub fn has_license_files(dir: &Path) -> bool {
+    crate::sources::github::LICENSE_NAMES
+        .iter()
+        .any(|name| dir.join(name).is_file())
+}
+
+/// Where a source's license files actually are.
+///
+/// `licenses_dir` records where they were put, but it can be edited by hand, and
+/// then it states an intention rather than a fact. Trusting it would make "current"
+/// and "target" agree and the move silently do nothing, so prefer whichever layout
+/// has files on disk.
+pub fn existing_license_dir(
+    track_path: &Path,
+    target: &str,
+    project_target: &str,
+    licenses_dir: Option<&str>,
+) -> PathBuf {
+    let candidates = license_dir_candidates(track_path, target, project_target, licenses_dir);
+    candidates
+        .iter()
+        .find(|dir| has_license_files(dir))
+        .cloned()
+        .unwrap_or_else(|| candidates[0].clone())
+}
+
+/// Every directory a source's licenses may occupy, current layout first.
+///
+/// Two of these are historical. Before registry targets were honoured, centralised
+/// licenses were placed using the project target, which kept the whole path
+/// (`licenses/app/ws_kits/ag_ui` rather than `licenses/ag_ui`). And `licenses_dir`
+/// may have been set after the files were written, leaving them side by side. Both
+/// have to be found, or upgrading orphans licenses already on disk.
+pub fn license_dir_candidates(
+    track_path: &Path,
+    target: &str,
+    project_target: &str,
+    licenses_dir: Option<&str>,
+) -> Vec<PathBuf> {
+    let mut candidates = vec![license_dir_for(track_path, target, licenses_dir)];
+
+    for legacy in [
+        license_dir_for(track_path, project_target, licenses_dir),
+        license_dir_for(track_path, target, None),
+    ] {
+        if !candidates.contains(&legacy) {
+            candidates.push(legacy);
+        }
+    }
+
+    candidates
 }
 
 /// Write license files to disk alongside the copied source.
@@ -487,5 +567,130 @@ mod tests {
                 "{within} should be rejected"
             );
         }
+    }
+
+    fn config_with_registry(registry_target: Option<&str>) -> crate::config::CopitConfig {
+        let mut registries = std::collections::BTreeMap::new();
+        registries.insert(
+            "my-kit".to_string(),
+            crate::config::RegistryConfig {
+                source: "github:owner/repo@v1".to_string(),
+                index: None,
+                target: registry_target.map(str::to_string),
+                variants: Vec::new(),
+                optional: Vec::new(),
+                package_manager: None,
+            },
+        );
+        crate::config::CopitConfig {
+            target: "vendor".to_string(),
+            registries,
+            ..Default::default()
+        }
+    }
+
+    fn entry(path: &str, component: Option<&str>) -> crate::config::SourceEntry {
+        crate::config::SourceEntry {
+            path: path.to_string(),
+            component: component.map(str::to_string),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn target_for_entry_prefers_the_registrys_own_target() {
+        let cfg = config_with_registry(Some("app/ws_kits"));
+        let entry = entry("app/ws_kits/ag_ui", Some("my-kit:ag-ui"));
+
+        assert_eq!(target_for_entry(&cfg, &entry), "app/ws_kits");
+    }
+
+    #[test]
+    fn target_for_entry_falls_back_to_the_project_target() {
+        let cfg = config_with_registry(None);
+
+        assert_eq!(
+            target_for_entry(&cfg, &entry("vendor/ag_ui", Some("my-kit:ag-ui"))),
+            "vendor"
+        );
+        assert_eq!(
+            target_for_entry(&cfg, &entry("vendor/lib.rs", None)),
+            "vendor"
+        );
+    }
+
+    #[test]
+    fn target_for_entry_ignores_a_registry_that_is_gone() {
+        let cfg = config_with_registry(Some("app/ws_kits"));
+        let entry = entry("vendor/thing", Some("removed-kit:thing"));
+
+        assert_eq!(target_for_entry(&cfg, &entry), "vendor");
+    }
+
+    #[test]
+    fn a_registry_component_keeps_its_name_under_a_licenses_dir() {
+        // The bug this guards: passing the project target leaves the whole path in
+        // place, giving licenses/app/ws_kits/ag_ui instead of licenses/ag_ui.
+        let cfg = config_with_registry(Some("app/ws_kits"));
+        let entry = entry("app/ws_kits/ag_ui", Some("my-kit:ag-ui"));
+        let target = target_for_entry(&cfg, &entry);
+
+        let dir = license_dir_for(Path::new(&entry.path), &target, Some("licenses"));
+
+        assert_eq!(dir, PathBuf::from("licenses/ag_ui"));
+    }
+
+    #[test]
+    fn existing_license_dir_finds_files_the_config_does_not_know_about() {
+        // licenses_dir edited by hand: the setting says "licenses", the files are
+        // still side by side, and reporting the configured path would move nothing.
+        let temp = tempfile::tempdir().expect("tempdir");
+        let root = temp.path();
+        let track_path = root.join("vendor/mylib");
+        std::fs::create_dir_all(&track_path).expect("create");
+        std::fs::write(track_path.join("LICENSE"), b"MIT").expect("write");
+
+        let target = portable_display(&root.join("vendor"));
+        let found = existing_license_dir(&track_path, &target, &target, Some("licenses"));
+
+        assert_eq!(found, track_path);
+    }
+
+    #[test]
+    fn existing_license_dir_finds_the_layout_written_before_registry_targets() {
+        // Upgrade path: an older copit centralised using the project target, so the
+        // file sits at licenses/app/ws_kits/ag_ui rather than licenses/ag_ui.
+        let temp = tempfile::tempdir().expect("tempdir");
+        let root = temp.path();
+        let legacy = root.join("licenses/app/ws_kits/ag_ui");
+        std::fs::create_dir_all(&legacy).expect("create");
+        std::fs::write(legacy.join("LICENSE"), b"MIT").expect("write");
+
+        let track_path = root.join("app/ws_kits/ag_ui");
+        let licenses_dir = portable_display(&root.join("licenses"));
+        let found = existing_license_dir(
+            &track_path,
+            &portable_display(&root.join("app/ws_kits")),
+            &portable_display(root),
+            Some(&licenses_dir),
+        );
+
+        assert_eq!(found, legacy);
+    }
+
+    #[test]
+    fn existing_license_dir_uses_the_configured_layout_when_it_holds_the_files() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let root = temp.path();
+        let centralized = root.join("licenses/mylib");
+        std::fs::create_dir_all(&centralized).expect("create");
+        std::fs::write(centralized.join("LICENSE"), b"MIT").expect("write");
+
+        let track_path = root.join("vendor/mylib");
+        let target = portable_display(&root.join("vendor"));
+        let licenses_dir = portable_display(&root.join("licenses"));
+        let found = existing_license_dir(&track_path, &target, &target, Some(&licenses_dir));
+
+        assert_eq!(found, centralized);
     }
 }

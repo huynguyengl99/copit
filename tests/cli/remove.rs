@@ -249,3 +249,90 @@ copied_at = "2026-01-01T00:00:00Z"
                 .and(predicates::str::contains("Removed license").not()),
         );
 }
+
+#[test]
+fn removes_a_registry_components_centralized_license() {
+    // The registry's own target decides the license path, so removal has to look
+    // under the component's name rather than the whole copied path.
+    let dir = TempDir::new().unwrap();
+    std::fs::write(
+        dir.path().join("copit.toml"),
+        r#"target = "vendor"
+licenses_dir = "licenses"
+
+[registries.my-kit]
+source = "github:owner/repo@v1"
+target = "app/ws_kits"
+
+[[sources]]
+path = "app/ws_kits/ag_ui"
+source = "github:owner/repo@v1/kits/ag_ui"
+ref = "v1"
+copied_at = "2026-01-01T00:00:00Z"
+component = "my-kit:ag-ui"
+"#,
+    )
+    .unwrap();
+
+    std::fs::create_dir_all(dir.path().join("app/ws_kits/ag_ui")).unwrap();
+    std::fs::write(dir.path().join("app/ws_kits/ag_ui/__init__.py"), "").unwrap();
+    std::fs::create_dir_all(dir.path().join("licenses/ag_ui")).unwrap();
+    std::fs::write(dir.path().join("licenses/ag_ui/LICENSE"), "MIT License").unwrap();
+
+    copit_cmd()
+        .args(["remove", "app/ws_kits/ag_ui"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains(
+            "Removed license: licenses/ag_ui/LICENSE",
+        ));
+
+    assert!(!dir.path().join("licenses/ag_ui/LICENSE").exists());
+}
+
+#[test]
+fn removes_a_license_left_by_an_older_layout() {
+    // Upgrade path: centralized by a copit that used the project target. Without
+    // looking there too, the file is orphaned with nothing tracking it.
+    let dir = TempDir::new().unwrap();
+    std::fs::write(
+        dir.path().join("copit.toml"),
+        r#"target = "vendor"
+licenses_dir = "licenses"
+
+[registries.my-kit]
+source = "github:owner/repo@v1"
+target = "app/ws_kits"
+
+[[sources]]
+path = "app/ws_kits/ag_ui"
+source = "github:owner/repo@v1/kits/ag_ui"
+ref = "v1"
+copied_at = "2026-01-01T00:00:00Z"
+component = "my-kit:ag-ui"
+"#,
+    )
+    .unwrap();
+
+    std::fs::create_dir_all(dir.path().join("app/ws_kits/ag_ui")).unwrap();
+    std::fs::write(dir.path().join("app/ws_kits/ag_ui/__init__.py"), "").unwrap();
+    std::fs::create_dir_all(dir.path().join("licenses/app/ws_kits/ag_ui")).unwrap();
+    std::fs::write(
+        dir.path().join("licenses/app/ws_kits/ag_ui/LICENSE"),
+        "MIT License",
+    )
+    .unwrap();
+
+    copit_cmd()
+        .args(["remove", "app/ws_kits/ag_ui"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Removed license:"));
+
+    assert!(!dir
+        .path()
+        .join("licenses/app/ws_kits/ag_ui/LICENSE")
+        .exists());
+}

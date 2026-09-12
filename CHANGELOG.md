@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.1] - 2026-09-12
+
+### Bug Fixes
+
+- Make licenses_dir work for registry components ([f4da054](https://github.com/huynguyengl99/copit/commit/f4da05431d9a45d74aad63783d27eedb08daa0c1))
+
 ## [0.6.0] - 2026-08-31
 
 ### Features

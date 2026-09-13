@@ -228,14 +228,35 @@ pub fn should_write_existing(dest: &Path, overwrite: bool, skip: bool) -> Result
     if overwrite {
         return Ok(true);
     }
-    Ok(dialoguer::Confirm::new()
+    match dialoguer::Confirm::new()
         .with_prompt(format!(
             "{} already exists. Overwrite?",
             portable_display(dest)
         ))
         .default(false)
         .interact()
-        .unwrap_or(false))
+    {
+        Ok(answer) => Ok(answer),
+        // No terminal to ask at: keeping the file is the safe answer, but saying
+        // nothing makes a whole update look like it succeeded having written
+        // nothing. See `--overwrite` and `--skip`.
+        Err(_) => {
+            println!(
+                "Keeping (exists, nothing to prompt with): {} \u{2014} pass --overwrite to replace it",
+                portable_display(dest)
+            );
+            Ok(false)
+        }
+    }
+}
+
+/// Whether the file on disk already holds exactly these bytes.
+///
+/// Worth asking before prompting about an overwrite: a component whose version moved
+/// without its files changing has nothing to write, and neither a question nor a
+/// warning is warranted.
+pub fn is_unchanged(dest: &Path, contents: &[u8]) -> bool {
+    std::fs::read(dest).is_ok_and(|existing| existing == contents)
 }
 
 /// Write file contents to dest, creating parent directories as needed.

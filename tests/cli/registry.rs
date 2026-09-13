@@ -1079,3 +1079,86 @@ fn updating_a_component_keeps_its_license_under_its_own_name() {
     assert!(root.join("licenses/auth_core/LICENSE").exists());
     assert!(root.join("licenses/logger/LICENSE").exists());
 }
+
+#[test]
+fn a_version_is_not_recorded_while_the_old_files_are_kept() {
+    // The manifest is a claim about what is installed. Keeping files that differ
+    // and recording the new version anyway makes it describe code that is not there.
+    let (project, registry) = project_with_registry(&[]);
+    let root = project.path();
+
+    copit_cmd()
+        .args(["add", "@my-kit/logger", "-y"])
+        .current_dir(root)
+        .assert()
+        .success();
+
+    // The component moves on, files and all.
+    std::fs::write(
+        registry.path().join("components/logger/__init__.py"),
+        "logger v2",
+    )
+    .unwrap();
+    let index = std::fs::read_to_string(registry.path().join(INDEX_FILE))
+        .unwrap()
+        .replacen("\"version\": \"0.1.0\"", "\"version\": \"0.2.0\"", 1);
+    std::fs::write(registry.path().join(INDEX_FILE), index).unwrap();
+
+    // No --overwrite, and no terminal to ask at: the existing file is kept.
+    copit_cmd()
+        .args(["update", "app/components/logger"])
+        .current_dir(root)
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("stays at 0.1.0"));
+
+    let installed =
+        std::fs::read_to_string(root.join("app/components/logger/__init__.py")).unwrap();
+    let config = std::fs::read_to_string(root.join("copit.toml")).unwrap();
+
+    assert_eq!(installed, "logger");
+    assert!(config.contains("component_version = \"0.1.0\""), "{config}");
+
+    // With --overwrite the files and the version move together.
+    copit_cmd()
+        .args(["update", "app/components/logger", "--overwrite"])
+        .current_dir(root)
+        .assert()
+        .success();
+
+    let installed =
+        std::fs::read_to_string(root.join("app/components/logger/__init__.py")).unwrap();
+    let config = std::fs::read_to_string(root.join("copit.toml")).unwrap();
+
+    assert_eq!(installed, "logger v2");
+    assert!(config.contains("component_version = \"0.2.0\""), "{config}");
+}
+
+#[test]
+fn an_unchanged_file_is_not_treated_as_kept() {
+    // A version that moves without its files changing has nothing to write, so it
+    // must not be held back by its own unchanged files.
+    let (project, registry) = project_with_registry(&[]);
+    let root = project.path();
+
+    copit_cmd()
+        .args(["add", "@my-kit/logger", "-y"])
+        .current_dir(root)
+        .assert()
+        .success();
+
+    let index = std::fs::read_to_string(registry.path().join(INDEX_FILE))
+        .unwrap()
+        .replacen("\"version\": \"0.1.0\"", "\"version\": \"0.2.0\"", 1);
+    std::fs::write(registry.path().join(INDEX_FILE), index).unwrap();
+
+    copit_cmd()
+        .args(["update", "app/components/logger"])
+        .current_dir(root)
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("stays at").not());
+
+    let config = std::fs::read_to_string(root.join("copit.toml")).unwrap();
+    assert!(config.contains("component_version = \"0.2.0\""), "{config}");
+}

@@ -158,6 +158,7 @@ async fn update_component(
 
     let track_path = PathBuf::from(&entry.path);
     let mut updated = 0;
+    let mut kept = 0;
 
     for (within, contents) in &fetched.files {
         let dest = track_path.join(within);
@@ -179,7 +180,14 @@ async fn update_component(
             continue;
         }
 
+        // Already these bytes: nothing to write, and nothing the version has to
+        // wait for.
+        if common::is_unchanged(&dest, contents) {
+            continue;
+        }
+
         if !should_write_existing(&dest, settings.overwrite, settings.skip)? {
+            kept += 1;
             continue;
         }
 
@@ -234,10 +242,25 @@ async fn update_component(
         frozen,
         entry.no_license,
     )?;
+    // A recorded version is a claim about the files on disk. Keeping any of the old
+    // ones makes the new version untrue, and a manifest that overstates what is
+    // installed is worse than one that lags.
+    let recorded_version = if kept > 0 {
+        println!(
+            "  Kept {kept} file(s) that differ, so {} stays at {}. Pass --overwrite to take {}.",
+            entry.path,
+            entry.component_version.as_deref().unwrap_or("its version"),
+            component.version,
+        );
+        entry.component_version.as_deref()
+    } else {
+        super::registry_add::component_version(component)
+    };
+
     config::set_source_component(
         &entry.path,
         backlink,
-        super::registry_add::component_version(component),
+        recorded_version,
         variants,
         recorded.as_deref(),
     )?;

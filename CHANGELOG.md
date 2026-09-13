@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.2] - 2026-09-13
+
+### Bug Fixes
+
+- Never record a version the files on disk do not match ([7f5d4b1](https://github.com/huynguyengl99/copit/commit/7f5d4b15174eaece927d4897231ae554342569ce))
+
 ## [0.6.1] - 2026-09-12
 
 ### Bug Fixes

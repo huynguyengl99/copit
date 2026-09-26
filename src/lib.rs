@@ -19,7 +19,10 @@
 //! ## Quick start
 //!
 //! ```bash
-//! # Initialize a copit.toml in your project
+//! # Start a new project from a template folder
+//! copit create github:owner/repo@v1.0/templates/api my-app
+//!
+//! # Or initialize a copit.toml in an existing project
 //! copit init
 //!
 //! # Copy a file from a GitHub repo
@@ -52,7 +55,7 @@
 //! - [`registry`]: Registry index model and component dependency resolution
 //! - [`installers`]: Package managers copit can add dependencies with
 //! - [`config`] — `copit.toml` loading, saving, and manipulation
-//! - [`commands`] — CLI command implementations (init, add, remove, update, update-all)
+//! - [`commands`] — CLI command implementations (init, create, add, remove, update, update-all)
 //! - [`cli`] — Clap argument definitions
 
 pub mod cli;

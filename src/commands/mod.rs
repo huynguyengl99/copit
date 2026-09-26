@@ -3,6 +3,7 @@
 //! Each submodule corresponds to a CLI subcommand:
 //!
 //! - [`init`] — Create a new `copit.toml`
+//! - [`create`]: Start a new project from a template folder
 //! - [`add`] — Fetch and copy source code into the project
 //! - [`remove`] — Delete tracked files and their config entries
 //! - [`update`] — Re-fetch specific tracked sources
@@ -13,6 +14,7 @@
 
 pub mod add;
 pub mod common;
+pub mod create;
 pub mod init;
 pub mod licenses_sync;
 pub mod registry;

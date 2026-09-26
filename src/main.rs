@@ -14,6 +14,7 @@ async fn main() -> anyhow::Result<()> {
 
     match args.command {
         Command::Init => commands::init::run()?,
+        Command::Create(cmd) => commands::create::run(&cmd).await?,
         Command::Add(cmd) => commands::add::run(&cmd).await?,
         Command::Remove(cmd) => commands::remove::run(&cmd)?,
         Command::Update(cmd) => commands::update::run(&cmd).await?,

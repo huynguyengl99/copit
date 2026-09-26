@@ -58,6 +58,10 @@ copit init
 
 This creates a `copit.toml` file in the current directory with a default target directory (`vendor`).
 
+Starting from scratch instead? `copit create <template> <dir>` makes a new project from a
+template folder, which may already bring its own `copit.toml`. See
+[`copit create`](commands.md#copit-create).
+
 ### 2. Add a source
 
 ```bash

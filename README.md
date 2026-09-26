@@ -90,6 +90,19 @@ copit add https://example.com/archive.zip#src/utils.rs
 
 Creates a `copit.toml` config file in the current directory with a default target directory (`vendor`).
 
+### `copit create <source> <dir>`
+
+Starts a new project from a template folder. Its contents are copied into `<dir>` (new or
+empty) as your own code, untracked. A template can ship its own `copit.toml`, so
+`copit add` works right away.
+
+```bash
+copit create github:owner/repo@v1.0.0/templates/api my-app
+copit create ../templates/api my-app     # a local folder, skipping what git ignores
+```
+
+As with registries, a template is data: copit copies it and never runs anything.
+
 ### `copit add <source>...`
 
 Fetches source code and copies it into your project.

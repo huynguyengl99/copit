@@ -8,6 +8,7 @@ This document contains the help content for the `copit` command-line program.
 
 * [`copit`↴](#copit)
 * [`copit init`↴](#copit-init)
+* [`copit create`↴](#copit-create)
 * [`copit add`↴](#copit-add)
 * [`copit remove`↴](#copit-remove)
 * [`copit update`↴](#copit-update)
@@ -28,6 +29,7 @@ Copy reusable source code into your project
 ###### **Subcommands:**
 
 * `init` — Initialize a new copit.toml config file
+* `create` — Start a new project from a template folder
 * `add` — Add source code from GitHub, HTTP URLs, or ZIP archives
 * `remove` — Remove previously copied source files
 * `update` — Re-fetch specific tracked source(s) by path
@@ -44,6 +46,30 @@ Copy reusable source code into your project
 Initialize a new copit.toml config file
 
 **Usage:** `copit init`
+
+
+
+## `copit create`
+
+Start a new project from a template folder
+
+**Usage:** `copit create <SOURCE> <DIR>`
+
+Examples:
+  # From a folder in a GitHub repository, at a tag
+  copit create github:owner/repo@v1.0.0/templates/fastapi-react my-app
+
+  # From a local folder (skips what git ignores)
+  copit create ../my-templates/fastapi-react my-app
+
+  # Into the current, empty directory
+  copit create gh:owner/repo@main/templates/api .
+
+
+###### **Arguments:**
+
+* `<SOURCE>` — Template folder: `github:owner/repo@ref/path`, `url.zip#path`, or a local directory
+* `<DIR>` — Directory to create the project in; must be new or empty
 
 
 

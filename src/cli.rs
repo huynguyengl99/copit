@@ -21,6 +21,8 @@ pub struct Args {
 pub enum Command {
     /// Initialize a new copit.toml config file
     Init,
+    /// Start a new project from a template folder
+    Create(CreateCommand),
     /// Add source code from GitHub, HTTP URLs, or ZIP archives
     Add(AddCommand),
     /// Remove previously copied source files
@@ -39,6 +41,26 @@ pub enum Command {
     Search(SearchCommand),
     /// Show what a component installs
     Info(InfoCommand),
+}
+
+#[derive(Parser)]
+#[command(after_help = "\
+Examples:
+  # From a folder in a GitHub repository, at a tag
+  copit create github:owner/repo@v1.0.0/templates/fastapi-react my-app
+
+  # From a local folder (skips what git ignores)
+  copit create ../my-templates/fastapi-react my-app
+
+  # Into the current, empty directory
+  copit create gh:owner/repo@main/templates/api .
+")]
+pub struct CreateCommand {
+    /// Template folder: `github:owner/repo@ref/path`, `url.zip#path`, or a local directory
+    pub source: String,
+
+    /// Directory to create the project in; must be new or empty
+    pub dir: String,
 }
 
 #[derive(Subcommand)]

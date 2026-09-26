@@ -100,21 +100,20 @@ async fn install_from(
     common::validate_install_target(&target)?;
 
     let root = std::env::current_dir().context("Failed to read the current directory")?;
-    let manager = resolve_manager(&registry, &index, &root);
+    let manager = resolve_manager(&registry, &index, &root, &target);
 
     // Show what will actually happen: --no-packages means nothing is installed, so
     // naming a manager here would be a lie.
-    let display_manager = if cmd.no_packages {
-        None
-    } else {
-        manager.as_deref()
+    let display_manager = match &manager {
+        Some(found) if !cmd.no_packages => Some(found.describe(&root)),
+        _ => None,
     };
     print_plan(
         &plan,
         &target,
         &variants,
         &optional,
-        display_manager,
+        display_manager.as_deref(),
         cmd.no_packages,
     );
 
@@ -146,25 +145,57 @@ async fn install_from(
     }
 
     if !cmd.no_packages && !plan.packages.is_empty() {
-        install_packages(&plan.packages, manager.as_deref(), &root)?;
+        install_packages(&plan.packages, manager.as_ref())?;
     }
 
     Ok(())
 }
 
-/// Which package manager to use, honouring explicit configuration over detection.
+/// A package manager and the directory it runs in.
+struct Manager {
+    name: String,
+    dir: PathBuf,
+}
+
+impl Manager {
+    fn describe(&self, root: &Path) -> String {
+        match self.dir.strip_prefix(root) {
+            Ok(rel) if !rel.as_os_str().is_empty() => {
+                format!("{} in {}", self.name, common::portable_display(rel))
+            }
+            _ => self.name.clone(),
+        }
+    }
+}
+
+/// The package manager, found in the nearest directory from `target` up to `root`.
 fn resolve_manager(
     registry: &config::RegistryConfig,
     index: &RegistryIndex,
     root: &Path,
-) -> Option<String> {
+    target: &str,
+) -> Option<Manager> {
+    let start = root.join(target);
+    let mut dirs = start.ancestors().filter(|dir| dir.starts_with(root));
+    let ecosystem = (!index.ecosystem.is_empty()).then_some(index.ecosystem.as_str());
+
     match registry.package_manager.as_deref() {
         Some("none") => None,
-        Some(name) => Some(name.to_string()),
-        None => {
-            let ecosystem = (!index.ecosystem.is_empty()).then_some(index.ecosystem.as_str());
-            installers::detect(root, ecosystem).map(|installer| installer.name.to_string())
+        Some(name) => {
+            let dir = installers::by_name(name)
+                .and_then(|installer| dirs.find(|dir| installer.detect(dir)))
+                .unwrap_or(root);
+            Some(Manager {
+                name: name.to_string(),
+                dir: dir.to_path_buf(),
+            })
         }
+        None => dirs.find_map(|dir| {
+            installers::detect(dir, ecosystem).map(|installer| Manager {
+                name: installer.name.to_string(),
+                dir: dir.to_path_buf(),
+            })
+        }),
     }
 }
 
@@ -411,8 +442,8 @@ pub fn component_dir(component: &crate::registry::Component) -> String {
         .unwrap_or_else(|| component.name.clone())
 }
 
-fn install_packages(packages: &[String], manager: Option<&str>, root: &Path) -> Result<()> {
-    let Some(name) = manager else {
+fn install_packages(packages: &[String], manager: Option<&Manager>) -> Result<()> {
+    let Some(Manager { name, dir }) = manager else {
         println!(
             "\nNo package manager detected. Install these yourself:\n  {}",
             packages.join(" ")
@@ -425,5 +456,5 @@ fn install_packages(packages: &[String], manager: Option<&str>, root: &Path) -> 
     };
 
     println!();
-    installers::install(installer, packages, root)
+    installers::install(installer, packages, dir)
 }

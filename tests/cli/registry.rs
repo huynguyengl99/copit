@@ -1162,3 +1162,63 @@ fn an_unchanged_file_is_not_treated_as_kept() {
     let config = std::fs::read_to_string(root.join("copit.toml")).unwrap();
     assert!(config.contains("component_version = \"0.2.0\""), "{config}");
 }
+
+/// A project with uv at the root and an npm app in `web/`, plus a registry of `ecosystem`.
+fn mixed_project(ecosystem: &str, target: &str) -> (TempDir, TempDir) {
+    let registry = TempDir::new().unwrap();
+    let index = format!(
+        r#"{{
+  "version": 1, "name": "kit", "ecosystem": "{ecosystem}",
+  "components": {{
+    "button": {{
+      "name": "button", "path": "components/button", "version": "0.1.0", "tier": "core",
+      "files": ["index.ts"], "dependencies": ["left-pad@1"]
+    }}
+  }}
+}}"#
+    );
+    std::fs::create_dir_all(registry.path().join("components/button")).unwrap();
+    std::fs::write(registry.path().join("copit-registry.json"), index).unwrap();
+    std::fs::write(registry.path().join("components/button/index.ts"), "x").unwrap();
+
+    let project = TempDir::new().unwrap();
+    let root = project.path();
+    std::fs::write(root.join("copit.toml"), "target = \"vendor\"\n").unwrap();
+    std::fs::write(root.join("pyproject.toml"), "[tool.uv]\n").unwrap();
+    std::fs::create_dir_all(root.join("web")).unwrap();
+    std::fs::write(root.join("web/package-lock.json"), "{}").unwrap();
+
+    copit_cmd()
+        .args(["registry", "add", "kit"])
+        .arg(registry.path())
+        .args(["--to", target])
+        .current_dir(root)
+        .assert()
+        .success();
+
+    (project, registry)
+}
+
+#[test]
+fn packages_install_where_the_target_s_package_manager_is() {
+    let (project, _registry) = mixed_project("node", "web/src/kits");
+
+    copit_cmd()
+        .args(["add", "@kit/button", "--dry-run"])
+        .current_dir(project.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("via npm in web"));
+}
+
+#[test]
+fn packages_fall_back_to_the_project_root() {
+    let (project, _registry) = mixed_project("python", "app/kits");
+
+    copit_cmd()
+        .args(["add", "@kit/button", "--dry-run"])
+        .current_dir(project.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("via uv)"));
+}

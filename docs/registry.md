@@ -342,8 +342,10 @@ resolving dependencies.
 
 ## Package managers
 
-Detected from the project, restricted to the registry's `ecosystem` so a Python registry
-never installs through npm just because the repository also has a frontend.
+Detected from the install target up to the project root, restricted to the registry's
+`ecosystem`, and run in the directory where it was found. A node registry targeting
+`web/src/components` installs with npm in `web/`, while a Python registry in the same
+repository installs with uv at the root.
 
 | Ecosystem | Detected by | Command |
 |---|---|---|

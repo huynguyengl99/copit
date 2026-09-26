@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.0] - 2026-09-26
+
+### Features
+
+- Install packages where the target's package manager is ([13bb9d5](https://github.com/huynguyengl99/copit/commit/13bb9d59017e02598185e8496df05a82eff95a08))
+
 ## [0.7.0] - 2026-09-26
 
 ### Features

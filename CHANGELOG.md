@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.0] - 2026-09-26
+
+### Features
+
+- Add copit create to start a project from a template folder ([253859b](https://github.com/huynguyengl99/copit/commit/253859b9083bffa3adf5a36227ad8d682f64ad0e))
+
 ## [0.6.2] - 2026-09-13
 
 ### Bug Fixes

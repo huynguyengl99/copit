@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use crate::cli::AddCommand;
 use crate::config::{self, CopitConfig, ResolvedSettings};
 use crate::installers;
-use crate::registry::{Deps, InstallPlan, PlannedComponent, RegistryIndex};
+use crate::registry::{Deps, InstallPlan, PartSelection, PlannedComponent, RegistryIndex};
 use crate::sources::{self, Source};
 
 use super::common::{self, portable_display, should_write_existing};
@@ -82,7 +82,11 @@ async fn install_from(
     } else {
         Deps::Resolve
     };
-    let plan = index.plan(requested, &variants, &optional, &installed, deps)?;
+    let parts = PartSelection {
+        only: cmd.only.clone(),
+        without: cmd.without.clone(),
+    };
+    let plan = index.plan(requested, &variants, &optional, &parts, &installed, deps)?;
 
     if plan.components.is_empty() {
         println!("Nothing to do: already installed.");
@@ -221,6 +225,23 @@ fn print_plan(
             "  {}  {}  ({}){}",
             component.name, component.version, component.tier, marker
         );
+        if let Some(kept) = &planned.parts {
+            let left_out: Vec<&str> = component
+                .parts
+                .keys()
+                .filter(|name| !kept.contains(name))
+                .map(String::as_str)
+                .collect();
+            println!(
+                "    parts: {} (leaving out {})",
+                if kept.is_empty() {
+                    "none".to_string()
+                } else {
+                    kept.join(", ")
+                },
+                left_out.join(", ")
+            );
+        }
         if !component.description.is_empty() {
             println!("    {}", component.description);
         }
@@ -447,6 +468,7 @@ pub(super) async fn copy_component(
         component_version(component),
         variants,
         *optional,
+        planned.parts.as_deref(),
     )?;
 
     Ok(())

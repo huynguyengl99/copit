@@ -314,6 +314,21 @@ pub async fn info(cmd: &InfoCommand) -> Result<()> {
         }
     }
 
+    if !component.parts.is_empty() {
+        println!("\n  parts (all by default; copit add --only <name> or --without <name>):");
+        for (name, part) in &component.parts {
+            let files = part.include.len();
+            let mut detail = vec![format!("{files} file{}", if files == 1 { "" } else { "s" })];
+            if !part.requires.is_empty() {
+                detail.push(format!("requires {}", part.requires.join(", ")));
+            }
+            if !part.dependencies.is_empty() {
+                detail.push(format!("packages {}", part.dependencies.join(", ")));
+            }
+            println!("    {name}: {}", detail.join(", "));
+        }
+    }
+
     let files = component.files_for(variants);
     println!("\n  files ({}):", files.len());
     for file in &files {

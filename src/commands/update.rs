@@ -138,9 +138,23 @@ async fn update_component(
         .or_else(|| (!registry.optional.is_empty()).then(|| registry.optional.clone()));
     let optional: &[String] = recorded.as_deref().unwrap_or_default();
 
-    let published: HashSet<String> = component.files_for(variants).into_iter().collect();
+    // Parts left out at install stay out.
+    let dropped = entry
+        .parts
+        .as_deref()
+        .map(|kept| component.dropped(kept))
+        .unwrap_or_default();
+    let published: HashSet<String> = component
+        .files_for(variants)
+        .into_iter()
+        .filter(|file| !dropped.files.contains(file))
+        .collect();
 
-    let selected: HashSet<String> = component.optional_files(optional).into_iter().collect();
+    let selected: HashSet<String> = component
+        .optional_files(optional)
+        .into_iter()
+        .filter(|file| !dropped.files.contains(file))
+        .collect();
 
     // Entries predating `optional` recorded no selection, so fall back to refreshing
     // whichever optional files are already on disk. Anything in neither set is never
@@ -263,6 +277,7 @@ async fn update_component(
         recorded_version,
         variants,
         recorded.as_deref(),
+        entry.parts.as_deref(),
     )?;
 
     install_group_requires(
@@ -323,6 +338,7 @@ async fn install_group_requires(
         &missing,
         variants,
         optional,
+        &crate::registry::PartSelection::default(),
         &installed,
         crate::registry::Deps::Resolve,
     )?;

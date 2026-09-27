@@ -71,6 +71,9 @@ pub struct SourceEntry {
     /// tag covering many components, each with its own semver.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub component_version: Option<String>,
+    /// The parts kept when some were left out; absent means the whole component.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parts: Option<Vec<String>>,
     /// Optional groups selected on install, so `update` reproduces them.
     ///
     /// Absent falls back to the registry's own `optional`; an empty list is an explicit
@@ -455,8 +458,17 @@ pub fn set_source_component(
     version: Option<&str>,
     variants: &[String],
     optional: Option<&[String]>,
+    parts: Option<&[String]>,
 ) -> Result<()> {
-    set_source_component_in(&config_path(), path, component, version, variants, optional)
+    set_source_component_in(
+        &config_path(),
+        path,
+        component,
+        version,
+        variants,
+        optional,
+        parts,
+    )
 }
 
 pub fn set_source_component_in(
@@ -466,6 +478,7 @@ pub fn set_source_component_in(
     version: Option<&str>,
     variants: &[String],
     optional: Option<&[String]>,
+    parts: Option<&[String]>,
 ) -> Result<()> {
     let content = std::fs::read_to_string(config_file).context("Failed to read copit.toml")?;
     let mut doc = content
@@ -506,6 +519,18 @@ pub fn set_source_component_in(
                 }
                 None => {
                     table.remove("optional");
+                }
+            }
+            match parts {
+                Some(parts) => {
+                    let mut array = toml_edit::Array::new();
+                    for part in parts {
+                        array.push(part.as_str());
+                    }
+                    table["parts"] = toml_edit::value(array);
+                }
+                None => {
+                    table.remove("parts");
                 }
             }
             found = true;
@@ -1017,6 +1042,7 @@ copied_at = "2026-03-07T00:00:00Z"
             Some("0.1.0"),
             &["postgres".to_string()],
             Some(["tests".to_string()].as_slice()),
+            None,
         )
         .unwrap();
 
@@ -1038,6 +1064,7 @@ copied_at = "2026-03-07T00:00:00Z"
             "my-kit:auth",
             None,
             &[],
+            None,
             None,
         )
         .unwrap();

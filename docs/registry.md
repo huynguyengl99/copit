@@ -69,6 +69,8 @@ copit add @my-kit/cache --dry-run # show the plan and stop
 | `--no-packages` | Copy files but do not install package dependencies |
 | `--variant <name>` | Override the configured variants |
 | `--with <group>` | Install an optional group, e.g. `--with tests`. Overrides the registry's `optional` |
+| `--only <part>` | Install only this part of a component, e.g. `--only stt` (repeatable) |
+| `--without <part>` | Leave this part of a component out (repeatable) |
 | `--no-optional` | Install no optional groups, overriding the registry's `optional` |
 | `--to <dir>` | Override the target directory |
 
@@ -237,6 +239,33 @@ Selecting groups, in precedence order:
 is recorded on the source entry, so `update` reproduces it and installs a requirement the
 group gains in a later index version — reporting that requirement's packages rather than
 installing them, since `update` never runs a package manager.
+
+### Parts: components you can install in pieces
+
+A component can be split into named parts that an install may leave out. A provider kit
+with speech-to-text and text-to-speech is one component with two parts:
+
+```json
+"deepgram": {
+  "requires": ["audio-stream-in", "audio-stream-out"],
+  "dependencies": ["websockets>=13"],
+  "files": ["__init__.py", "transcriber.py", "synthesizer.py"],
+  "parts": {
+    "stt": { "include": ["transcriber.py"], "requires": ["audio-stream-in"] },
+    "tts": { "include": ["synthesizer.py"], "requires": ["audio-stream-out"] }
+  }
+}
+```
+
+`copit add @kit/deepgram` installs everything. `--only stt` (or `--without tts`)
+leaves out the other part's files, and whatever components or packages only it lists.
+The choice is recorded on the installed entry (`parts = ["stt"]`), so `copit update`
+keeps it.
+
+Parts are subtractive on purpose: every part's files, `requires` and `dependencies` are
+also listed on the component itself. A copit that predates parts ignores the field and
+installs the whole component, which is the default anyway. List a requirement under a
+part only if nothing outside that part needs it.
 
 ### Restricting a component to a variant
 

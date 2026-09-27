@@ -1321,3 +1321,161 @@ fn installing_with_a_variant_does_not_warn() {
         .success()
         .stderr(predicate::str::contains("no variant is selected").not());
 }
+
+/// A registry with one component in two parts, each needing its own base component.
+fn write_parts_registry(root: &Path) {
+    let index = r#"{
+  "version": 1,
+  "name": "voice-kit",
+  "ecosystem": "python",
+  "components": {
+    "audio-in":  { "name": "audio-in",  "path": "c/audio_in",  "files": ["__init__.py"] },
+    "audio-out": { "name": "audio-out", "path": "c/audio_out", "files": ["__init__.py"] },
+    "voice": {
+      "name": "voice", "path": "c/voice",
+      "requires": ["audio-in", "audio-out"],
+      "files": ["__init__.py", "transcriber.py", "synthesizer.py"],
+      "parts": {
+        "stt": { "include": ["transcriber.py"], "requires": ["audio-in"] },
+        "tts": { "include": ["synthesizer.py"], "requires": ["audio-out"] }
+      }
+    }
+  }
+}"#;
+    for dir in ["c/audio_in", "c/audio_out", "c/voice"] {
+        std::fs::create_dir_all(root.join(dir)).unwrap();
+        std::fs::write(root.join(dir).join("__init__.py"), dir).unwrap();
+    }
+    std::fs::write(root.join("c/voice/transcriber.py"), "stt v1").unwrap();
+    std::fs::write(root.join("c/voice/synthesizer.py"), "tts v1").unwrap();
+    std::fs::write(root.join(INDEX_FILE), index).unwrap();
+}
+
+fn parts_project() -> (TempDir, TempDir) {
+    let registry = TempDir::new().unwrap();
+    write_parts_registry(registry.path());
+    let project = TempDir::new().unwrap();
+    std::fs::write(project.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
+    copit_cmd()
+        .args([
+            "registry",
+            "add",
+            "voice-kit",
+            &registry.path().to_string_lossy(),
+            "--to",
+            "kits",
+        ])
+        .current_dir(project.path())
+        .assert()
+        .success();
+    (project, registry)
+}
+
+#[test]
+fn a_component_with_parts_installs_whole_by_default() {
+    let (project, _registry) = parts_project();
+    copit_cmd()
+        .args(["add", "@voice-kit/voice", "-y", "--no-packages"])
+        .current_dir(project.path())
+        .assert()
+        .success();
+
+    let kits = project.path().join("kits");
+    assert!(kits.join("voice/transcriber.py").exists());
+    assert!(kits.join("voice/synthesizer.py").exists());
+    assert!(kits.join("audio_in").exists() && kits.join("audio_out").exists());
+    let config = std::fs::read_to_string(project.path().join("copit.toml")).unwrap();
+    assert!(!config.contains("parts ="), "{config}");
+}
+
+#[test]
+fn only_one_part_leaves_the_other_and_its_requirement_out() {
+    let (project, _registry) = parts_project();
+    copit_cmd()
+        .args([
+            "add",
+            "@voice-kit/voice",
+            "--only",
+            "stt",
+            "-y",
+            "--no-packages",
+        ])
+        .current_dir(project.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("parts: stt (leaving out tts)"));
+
+    let kits = project.path().join("kits");
+    assert!(kits.join("voice/transcriber.py").exists());
+    assert!(!kits.join("voice/synthesizer.py").exists());
+    assert!(kits.join("audio_in").exists());
+    assert!(!kits.join("audio_out").exists());
+    let config = std::fs::read_to_string(project.path().join("copit.toml")).unwrap();
+    assert!(config.contains("parts = [\"stt\"]"), "{config}");
+}
+
+#[test]
+fn without_a_part_is_the_same_choice_from_the_other_side() {
+    let (project, _registry) = parts_project();
+    copit_cmd()
+        .args([
+            "add",
+            "@voice-kit/voice",
+            "--without",
+            "stt",
+            "-y",
+            "--no-packages",
+        ])
+        .current_dir(project.path())
+        .assert()
+        .success();
+
+    let kits = project.path().join("kits");
+    assert!(kits.join("voice/synthesizer.py").exists());
+    assert!(!kits.join("voice/transcriber.py").exists());
+    assert!(!kits.join("audio_in").exists());
+}
+
+#[test]
+fn an_update_keeps_a_left_out_part_out() {
+    let (project, registry) = parts_project();
+    copit_cmd()
+        .args([
+            "add",
+            "@voice-kit/voice",
+            "--only",
+            "stt",
+            "-y",
+            "--no-packages",
+        ])
+        .current_dir(project.path())
+        .assert()
+        .success();
+    std::fs::write(registry.path().join("c/voice/transcriber.py"), "stt v2").unwrap();
+
+    copit_cmd()
+        .args(["update", "kits/voice", "--overwrite"])
+        .current_dir(project.path())
+        .assert()
+        .success();
+
+    let kits = project.path().join("kits");
+    assert_eq!(
+        std::fs::read_to_string(kits.join("voice/transcriber.py")).unwrap(),
+        "stt v2"
+    );
+    assert!(!kits.join("voice/synthesizer.py").exists());
+}
+
+#[test]
+fn an_unknown_part_is_a_clear_error() {
+    let (project, _registry) = parts_project();
+    copit_cmd()
+        .args(["add", "@voice-kit/voice", "--only", "sst", "-y"])
+        .current_dir(project.path())
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "No requested component has a part 'sst'. Parts: stt, tts",
+        ));
+}

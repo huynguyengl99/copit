@@ -239,6 +239,14 @@ pub struct AddCommand {
     /// Install no optional groups, ignoring the registry's configured `optional`
     #[arg(long, conflicts_with = "with")]
     pub no_optional: bool,
+
+    /// Install only this part of a component, e.g. `--only stt` (repeatable)
+    #[arg(long = "only", value_name = "PART")]
+    pub only: Vec<String>,
+
+    /// Leave this part of a component out, e.g. `--without tts` (repeatable)
+    #[arg(long = "without", value_name = "PART")]
+    pub without: Vec<String>,
 }
 
 #[derive(Parser)]

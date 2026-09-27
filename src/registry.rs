@@ -123,6 +123,46 @@ impl<'de> Deserialize<'de> for OptionalGroup {
     }
 }
 
+/// A part an install may leave out. Everything it lists is on the component too, so a
+/// copit without parts installs the whole component.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct Part {
+    /// Its files, optional-group ones included.
+    #[serde(default)]
+    pub include: Vec<String>,
+    /// Components only this part needs.
+    #[serde(default)]
+    pub requires: Vec<String>,
+    /// Packages only this part needs.
+    #[serde(default)]
+    pub dependencies: Vec<String>,
+}
+
+/// Which parts an install keeps: every part unless `only` names some, minus `without`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PartSelection {
+    pub only: Vec<String>,
+    pub without: Vec<String>,
+}
+
+impl PartSelection {
+    pub fn is_all(&self) -> bool {
+        self.only.is_empty() && self.without.is_empty()
+    }
+
+    fn names(&self) -> impl Iterator<Item = &String> {
+        self.only.iter().chain(self.without.iter())
+    }
+}
+
+/// What leaving parts out removes from a component.
+#[derive(Debug, Clone, Default)]
+pub struct Dropped {
+    pub files: HashSet<String>,
+    pub requires: HashSet<String>,
+    pub dependencies: HashSet<String>,
+}
+
 /// One installable component.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Component {
@@ -166,6 +206,9 @@ pub struct Component {
     /// Named groups excluded from a normal install, e.g. `tests`, installed on `--with`.
     #[serde(default)]
     pub optional: BTreeMap<String, OptionalGroup>,
+    /// Parts an install may leave out with `--only` / `--without`. See [`Part`].
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub parts: BTreeMap<String, Part>,
 }
 
 impl Component {
@@ -234,6 +277,42 @@ impl Component {
         files.sort();
         files.dedup();
         files
+    }
+
+    /// The parts kept, or None when all are.
+    pub fn kept_parts(&self, selection: &PartSelection) -> Option<Vec<String>> {
+        if self.parts.is_empty() || selection.is_all() {
+            return None;
+        }
+        let kept: Vec<String> = self
+            .parts
+            .keys()
+            .filter(|name| selection.only.is_empty() || selection.only.contains(name))
+            .filter(|name| !selection.without.contains(name))
+            .cloned()
+            .collect();
+        (kept.len() < self.parts.len()).then_some(kept)
+    }
+
+    /// What a left-out part lists that no kept part does.
+    pub fn dropped(&self, kept: &[String]) -> Dropped {
+        let mut keep = Dropped::default();
+        let mut drop = Dropped::default();
+        for (name, part) in &self.parts {
+            let into = if kept.contains(name) {
+                &mut keep
+            } else {
+                &mut drop
+            };
+            into.files.extend(part.include.iter().cloned());
+            into.requires.extend(part.requires.iter().cloned());
+            into.dependencies.extend(part.dependencies.iter().cloned());
+        }
+        Dropped {
+            files: &drop.files - &keep.files,
+            requires: &drop.requires - &keep.requires,
+            dependencies: &drop.dependencies - &keep.dependencies,
+        }
     }
 
     /// Components the selected groups pull in, deduplicated.
@@ -312,6 +391,10 @@ pub struct PlannedComponent {
     pub files: Vec<String>,
     /// True when the user asked for this component rather than it being pulled in.
     pub requested: bool,
+    /// The parts kept when some were left out, recorded for updates.
+    pub parts: Option<Vec<String>>,
+    /// Packages this component needs, variants, groups and parts applied.
+    pub packages: Vec<String>,
 }
 
 /// Whether an install plan follows each component's `requires`.
@@ -437,11 +520,13 @@ impl RegistryIndex {
     /// import one that is already on disk. Components in `installed` are skipped
     /// unless requested directly. `deps` decides whether `requires` is followed;
     /// validation and de-duplication apply either way.
+    #[allow(clippy::too_many_arguments)]
     pub fn plan(
         &self,
         requested: &[String],
         variants: &[String],
         optional: &[String],
+        parts: &PartSelection,
         installed: &HashSet<String>,
         deps: Deps,
     ) -> Result<InstallPlan> {
@@ -451,11 +536,13 @@ impl RegistryIndex {
         for id in requested {
             self.component(id)?;
         }
+        self.check_parts(requested, parts)?;
 
         let mut resolver = Resolver {
             index: self,
             variants,
             optional,
+            parts,
             installed,
             wanted: requested.iter().map(String::as_str).collect(),
             deps,
@@ -473,7 +560,7 @@ impl RegistryIndex {
         plan.packages = plan
             .components
             .iter()
-            .flat_map(|planned| planned.component.packages_for(variants, optional))
+            .flat_map(|planned| planned.packages.iter().cloned())
             .filter(|package| seen.insert(package.clone()))
             .collect();
 
@@ -485,6 +572,36 @@ impl RegistryIndex {
     /// Index-level `install.optional` is a generator-side default: only groups a
     /// component actually materialised into its own `optional` map can be copied, so
     /// only those are accepted here.
+    /// Each `--only` / `--without` part must belong to a requested component.
+    pub fn check_parts(&self, requested: &[String], parts: &PartSelection) -> Result<()> {
+        for name in parts.names() {
+            let known = requested
+                .iter()
+                .filter_map(|id| self.components.get(id))
+                .any(|component| component.parts.contains_key(name));
+            if known {
+                continue;
+            }
+            let mut available: Vec<&str> = requested
+                .iter()
+                .filter_map(|id| self.components.get(id))
+                .flat_map(|component| component.parts.keys())
+                .map(String::as_str)
+                .collect();
+            available.sort_unstable();
+            available.dedup();
+            bail!(
+                "No requested component has a part '{name}'. Parts: {}",
+                if available.is_empty() {
+                    "none".to_string()
+                } else {
+                    available.join(", ")
+                }
+            );
+        }
+        Ok(())
+    }
+
     pub fn check_optional(&self, groups: &[String]) -> Result<()> {
         for group in groups {
             let known = self
@@ -538,6 +655,7 @@ struct Resolver<'a> {
     index: &'a RegistryIndex,
     variants: &'a [String],
     optional: &'a [String],
+    parts: &'a PartSelection,
     installed: &'a HashSet<String>,
     wanted: HashSet<&'a str>,
     deps: Deps,
@@ -563,11 +681,25 @@ impl Resolver<'_> {
         }
 
         let component = self.index.component(id)?;
+        let requested = self.wanted.contains(id);
+        // Parts apply to what was asked for; a component pulled in comes whole.
+        let kept = if requested {
+            component.kept_parts(self.parts)
+        } else {
+            None
+        };
+        let dropped = kept
+            .as_deref()
+            .map(|kept| component.dropped(kept))
+            .unwrap_or_default();
 
         if self.deps == Deps::Resolve {
             self.visiting.push(id.to_string());
             // Post-order: dependencies land in the plan before whatever needs them.
             for dependency in component.requires.clone() {
+                if dropped.requires.contains(&dependency) {
+                    continue;
+                }
                 self.visit(&dependency)?;
             }
             for dependency in component.optional_requires(self.optional) {
@@ -578,7 +710,6 @@ impl Resolver<'_> {
 
         self.done.insert(id.to_string());
 
-        let requested = self.wanted.contains(id);
         if self.installed.contains(id) && !requested {
             return Ok(());
         }
@@ -610,11 +741,19 @@ impl Resolver<'_> {
 
         let mut files = component.files_for(self.variants);
         files.extend(component.optional_files(self.optional));
+        files.retain(|file| !dropped.files.contains(file));
+        let packages = component
+            .packages_for(self.variants, self.optional)
+            .into_iter()
+            .filter(|package| !dropped.dependencies.contains(package))
+            .collect();
 
         self.plan.components.push(PlannedComponent {
             component: component.clone(),
             files,
             requested,
+            parts: kept,
+            packages,
         });
 
         Ok(())
@@ -865,6 +1004,7 @@ mod tests {
             only_variants: vec![],
             files: vec!["__init__.py".to_string()],
             optional: BTreeMap::new(),
+            parts: BTreeMap::new(),
         }
     }
 
@@ -910,6 +1050,7 @@ mod tests {
                 &["logger".to_string()],
                 &[],
                 &[],
+                &PartSelection::default(),
                 &HashSet::new(),
                 Deps::Resolve,
             )
@@ -927,7 +1068,14 @@ mod tests {
         ]);
 
         let plan = registry
-            .plan(&["a".to_string()], &[], &[], &HashSet::new(), Deps::Resolve)
+            .plan(
+                &["a".to_string()],
+                &[],
+                &[],
+                &PartSelection::default(),
+                &HashSet::new(),
+                Deps::Resolve,
+            )
             .unwrap();
 
         assert_eq!(plan_ids(&plan), vec!["c", "b", "a"]);
@@ -946,6 +1094,7 @@ mod tests {
                 &["one".to_string(), "two".to_string()],
                 &[],
                 &[],
+                &PartSelection::default(),
                 &HashSet::new(),
                 Deps::Resolve,
             )
@@ -966,6 +1115,7 @@ mod tests {
                 &["logger".to_string()],
                 &[],
                 &[],
+                &PartSelection::default(),
                 &HashSet::new(),
                 Deps::Resolve,
             )
@@ -989,7 +1139,14 @@ mod tests {
         let installed: HashSet<String> = ["store".to_string()].into_iter().collect();
 
         let plan = registry
-            .plan(&["logger".to_string()], &[], &[], &installed, Deps::Resolve)
+            .plan(
+                &["logger".to_string()],
+                &[],
+                &[],
+                &PartSelection::default(),
+                &installed,
+                Deps::Resolve,
+            )
             .unwrap();
 
         assert_eq!(plan_ids(&plan), vec!["logger"]);
@@ -1001,7 +1158,14 @@ mod tests {
         let installed: HashSet<String> = ["logger".to_string()].into_iter().collect();
 
         let plan = registry
-            .plan(&["logger".to_string()], &[], &[], &installed, Deps::Resolve)
+            .plan(
+                &["logger".to_string()],
+                &[],
+                &[],
+                &PartSelection::default(),
+                &installed,
+                Deps::Resolve,
+            )
             .unwrap();
 
         assert_eq!(plan_ids(&plan), vec!["logger"]);
@@ -1015,7 +1179,14 @@ mod tests {
         ]);
 
         let error = registry
-            .plan(&["a".to_string()], &[], &[], &HashSet::new(), Deps::Resolve)
+            .plan(
+                &["a".to_string()],
+                &[],
+                &[],
+                &PartSelection::default(),
+                &HashSet::new(),
+                Deps::Resolve,
+            )
             .unwrap_err()
             .to_string();
 
@@ -1028,7 +1199,14 @@ mod tests {
         let registry = index(vec![component("a", &["a"], &[])]);
 
         assert!(registry
-            .plan(&["a".to_string()], &[], &[], &HashSet::new(), Deps::Resolve)
+            .plan(
+                &["a".to_string()],
+                &[],
+                &[],
+                &PartSelection::default(),
+                &HashSet::new(),
+                Deps::Resolve
+            )
             .is_err());
     }
 
@@ -1041,6 +1219,7 @@ mod tests {
                 &["analy".to_string()],
                 &[],
                 &[],
+                &PartSelection::default(),
                 &HashSet::new(),
                 Deps::Resolve,
             )
@@ -1067,6 +1246,7 @@ mod tests {
                     std::slice::from_ref(&typo),
                     &[],
                     &[],
+                    &PartSelection::default(),
                     &HashSet::new(),
                     Deps::Resolve,
                 )
@@ -1102,6 +1282,7 @@ mod tests {
                     std::slice::from_ref(&typo),
                     &[],
                     &[],
+                    &PartSelection::default(),
                     &HashSet::new(),
                     Deps::Resolve,
                 )
@@ -1132,6 +1313,7 @@ mod tests {
                 &["zzz".to_string()],
                 &[],
                 &[],
+                &PartSelection::default(),
                 &HashSet::new(),
                 Deps::Resolve,
             )
@@ -1147,7 +1329,14 @@ mod tests {
         let registry = index(vec![component("a", &["ghost"], &[])]);
 
         let error = registry
-            .plan(&["a".to_string()], &[], &[], &HashSet::new(), Deps::Resolve)
+            .plan(
+                &["a".to_string()],
+                &[],
+                &[],
+                &PartSelection::default(),
+                &HashSet::new(),
+                Deps::Resolve,
+            )
             .unwrap_err()
             .to_string();
 
@@ -1166,6 +1355,7 @@ mod tests {
                 &["logger".to_string()],
                 &[],
                 &[],
+                &PartSelection::default(),
                 &HashSet::new(),
                 Deps::Resolve,
             )
@@ -1191,6 +1381,7 @@ mod tests {
                 &["widget".to_string()],
                 &[],
                 &[],
+                &PartSelection::default(),
                 &HashSet::new(),
                 Deps::Resolve,
             )
@@ -1200,6 +1391,7 @@ mod tests {
                 &["widget".to_string()],
                 &["sqlite".to_string()],
                 &[],
+                &PartSelection::default(),
                 &HashSet::new(),
                 Deps::Resolve,
             )
@@ -1238,6 +1430,7 @@ mod tests {
                 &["widget".to_string()],
                 &["sqlite".to_string()],
                 &[],
+                &PartSelection::default(),
                 &HashSet::new(),
                 Deps::Resolve,
             )
@@ -1284,6 +1477,7 @@ mod tests {
                 &["widget".to_string()],
                 &["sqlite".to_string()],
                 &[],
+                &PartSelection::default(),
                 &HashSet::new(),
                 Deps::Resolve,
             )
@@ -1312,6 +1506,7 @@ mod tests {
                 &["widget".to_string()],
                 &[],
                 &[],
+                &PartSelection::default(),
                 &HashSet::new(),
                 Deps::Resolve,
             )
@@ -1321,6 +1516,7 @@ mod tests {
                 &["widget".to_string()],
                 &[],
                 &["tests".to_string()],
+                &PartSelection::default(),
                 &HashSet::new(),
                 Deps::Resolve,
             )
@@ -1360,6 +1556,7 @@ mod tests {
                 &["notify".to_string()],
                 &[],
                 &["tests".to_string()],
+                &PartSelection::default(),
                 &HashSet::new(),
                 Deps::Resolve,
             )
@@ -1382,6 +1579,7 @@ mod tests {
                 &["notify".to_string()],
                 &[],
                 &[],
+                &PartSelection::default(),
                 &HashSet::new(),
                 Deps::Resolve,
             )
@@ -1402,6 +1600,7 @@ mod tests {
                 &["notify".to_string()],
                 &[],
                 &["tests".to_string()],
+                &PartSelection::default(),
                 &HashSet::new(),
                 Deps::Skip,
             )
@@ -1422,6 +1621,7 @@ mod tests {
                 &["notify".to_string()],
                 &[],
                 &["tests".to_string()],
+                &PartSelection::default(),
                 &HashSet::new(),
                 Deps::Resolve,
             )
@@ -1497,6 +1697,7 @@ mod tests {
                 &["widget".to_string()],
                 &[],
                 &["docs".to_string()],
+                &PartSelection::default(),
                 &HashSet::new(),
                 Deps::Resolve,
             )
@@ -1516,6 +1717,7 @@ mod tests {
                 &["widget".to_string()],
                 &["mysql".to_string()],
                 &[],
+                &PartSelection::default(),
                 &HashSet::new(),
                 Deps::Resolve,
             )
@@ -1639,5 +1841,118 @@ mod tests {
         assert_eq!(registry.search("pluggable").len(), 1);
         assert_eq!(registry.search("memory").len(), 1);
         assert_eq!(registry.search("nothing").len(), 0);
+    }
+
+    fn voice() -> Component {
+        let mut voice = component(
+            "voice",
+            &["audio-in", "audio-out", "shared"],
+            &["ws", "http"],
+        );
+        voice.files = vec![
+            "__init__.py".into(),
+            "transcriber.py".into(),
+            "synthesizer.py".into(),
+        ];
+        voice.parts.insert(
+            "stt".into(),
+            Part {
+                include: vec!["transcriber.py".into()],
+                requires: vec!["audio-in".into(), "shared".into()],
+                dependencies: vec!["ws".into()],
+            },
+        );
+        voice.parts.insert(
+            "tts".into(),
+            Part {
+                include: vec!["synthesizer.py".into()],
+                requires: vec!["audio-out".into(), "shared".into()],
+                dependencies: vec!["http".into()],
+            },
+        );
+        voice
+    }
+
+    #[test]
+    fn every_part_is_kept_unless_asked_otherwise() {
+        let voice = voice();
+        assert_eq!(voice.kept_parts(&PartSelection::default()), None);
+        let only = PartSelection {
+            only: vec!["stt".into()],
+            without: vec![],
+        };
+        assert_eq!(voice.kept_parts(&only), Some(vec!["stt".to_string()]));
+        let without = PartSelection {
+            only: vec![],
+            without: vec!["stt".into()],
+        };
+        assert_eq!(voice.kept_parts(&without), Some(vec!["tts".to_string()]));
+    }
+
+    #[test]
+    fn a_left_out_part_drops_only_what_no_kept_part_needs() {
+        let dropped = voice().dropped(&["stt".to_string()]);
+        assert_eq!(dropped.files, HashSet::from(["synthesizer.py".to_string()]));
+        // `shared` is needed by the kept part too, so it stays.
+        assert_eq!(dropped.requires, HashSet::from(["audio-out".to_string()]));
+        assert_eq!(dropped.dependencies, HashSet::from(["http".to_string()]));
+    }
+
+    #[test]
+    fn a_plan_with_one_part_leaves_the_other_out() {
+        let index = index(vec![
+            voice(),
+            component("audio-in", &[], &[]),
+            component("audio-out", &[], &[]),
+            component("shared", &[], &[]),
+        ]);
+        let plan = index
+            .plan(
+                &["voice".to_string()],
+                &[],
+                &[],
+                &PartSelection {
+                    only: vec!["stt".into()],
+                    without: vec![],
+                },
+                &HashSet::new(),
+                Deps::Resolve,
+            )
+            .unwrap();
+
+        let ids: Vec<&str> = plan
+            .components
+            .iter()
+            .map(|c| c.component.name.as_str())
+            .collect();
+        assert_eq!(ids, vec!["audio-in", "shared", "voice"]);
+        let voice = plan.components.last().unwrap();
+        assert_eq!(voice.files, vec!["__init__.py", "transcriber.py"]);
+        assert_eq!(voice.parts, Some(vec!["stt".to_string()]));
+        assert_eq!(plan.packages, vec!["ws"]);
+    }
+
+    #[test]
+    fn an_unknown_part_is_refused() {
+        let index = index(vec![voice()]);
+        let error = index
+            .plan(
+                &["voice".to_string()],
+                &[],
+                &[],
+                &PartSelection {
+                    only: vec!["ttx".into()],
+                    without: vec![],
+                },
+                &HashSet::new(),
+                Deps::Skip,
+            )
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("no part 'ttx'") || error.contains("part 'ttx'"),
+            "{error}"
+        );
+        assert!(error.contains("stt, tts"), "{error}");
     }
 }

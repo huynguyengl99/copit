@@ -124,6 +124,8 @@ Examples:
 * `--variant <VARIANTS>` — Registry variant to select, overriding copit.toml (repeatable)
 * `--with <WITH>` — Also copy an optional file group, e.g. `--with tests` (repeatable)
 * `--no-optional` — Install no optional groups, ignoring the registry's configured `optional`
+* `--only <PART>` — Install only this part of a component, e.g. `--only stt` (repeatable)
+* `--without <PART>` — Leave this part of a component out, e.g. `--without tts` (repeatable)
 
 
 

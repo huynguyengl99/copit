@@ -39,6 +39,14 @@ pub struct Variant {
     pub include: Vec<String>,
 }
 
+/// How to recognise a variant from the project's manifests. See [`crate::detect`].
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct VariantDetect {
+    /// A project depending on any of these uses the variant.
+    #[serde(default)]
+    pub packages: Vec<String>,
+}
+
 /// What an optional group brings in beyond its files.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -288,6 +296,9 @@ pub struct RegistryIndex {
     pub ecosystem: String,
     #[serde(default)]
     pub variants: Vec<String>,
+    /// Per variant, the packages that mark a project as using it.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub detect: BTreeMap<String, VariantDetect>,
     #[serde(default)]
     pub install: InstallConfig,
     pub components: BTreeMap<String, Component>,
@@ -871,6 +882,7 @@ mod tests {
             homepage: None,
             ecosystem: "python".to_string(),
             variants: vec!["sqlite".to_string(), "postgres".to_string()],
+            detect: BTreeMap::new(),
             install: InstallConfig::default(),
             components: components
                 .into_iter()

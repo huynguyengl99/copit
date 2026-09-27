@@ -7,6 +7,7 @@ use anyhow::{bail, Context, Result};
 
 use crate::cli::{InfoCommand, RegistryAddCommand, SearchCommand};
 use crate::config::{self, RegistryConfig};
+use crate::detect;
 use crate::installers;
 use crate::registry::{load_index, Component, RegistryIndex};
 use crate::sources::Source;
@@ -124,11 +125,45 @@ pub async fn add(cmd: &RegistryAddCommand) -> Result<()> {
         common::validate_install_target(target)?;
     }
 
+    // Without --variant, detect from the project's manifests; recorded like a choice.
+    let variants = if cmd.variants.is_empty() {
+        let root = std::env::current_dir().context("Failed to read the current directory")?;
+        let detected = detect::detect_variants(&index, &root, target.as_deref());
+        if !detected.variants.is_empty() {
+            let from: Vec<String> = detected
+                .manifests
+                .iter()
+                .map(|path: &std::path::PathBuf| {
+                    common::portable_display(path.strip_prefix(&root).unwrap_or(path))
+                })
+                .collect();
+            println!(
+                "Detected variant{} {} from {}",
+                if detected.variants.len() == 1 {
+                    ""
+                } else {
+                    "s"
+                },
+                detected.variants.join(", "),
+                from.join(", ")
+            );
+        } else if !index.variants.is_empty() {
+            println!(
+                "No variant selected. Components with per-variant files install without \
+                 them; pass --variant ({}) to choose.",
+                index.variants.join(", ")
+            );
+        }
+        detected.variants
+    } else {
+        cmd.variants.clone()
+    };
+
     let entry = RegistryConfig {
         source: cmd.source.clone(),
         index: cmd.index.clone(),
         target,
-        variants: cmd.variants.clone(),
+        variants: variants.clone(),
         optional: cmd.with.clone(),
         package_manager: cmd.package_manager.clone(),
     };
@@ -141,8 +176,8 @@ pub async fn add(cmd: &RegistryAddCommand) -> Result<()> {
         if index.components.len() == 1 { "" } else { "s" },
         cmd.source
     );
-    if !cmd.variants.is_empty() {
-        println!("  variants: {}", cmd.variants.join(", "));
+    if !variants.is_empty() {
+        println!("  variants: {}", variants.join(", "));
     }
     if !cmd.with.is_empty() {
         println!("  optional: {}", cmd.with.join(", "));

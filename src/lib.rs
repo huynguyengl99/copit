@@ -54,6 +54,7 @@
 //! - [`sources`] — Source parsing, fetching (GitHub, HTTP, ZIP)
 //! - [`registry`]: Registry index model and component dependency resolution
 //! - [`installers`]: Package managers copit can add dependencies with
+//! - [`detect`]: Variant detection from project manifests
 //! - [`config`] — `copit.toml` loading, saving, and manipulation
 //! - [`commands`] — CLI command implementations (init, create, add, remove, update, update-all)
 //! - [`cli`] — Clap argument definitions
@@ -61,6 +62,7 @@
 pub mod cli;
 pub mod commands;
 pub mod config;
+pub mod detect;
 pub mod installers;
 pub mod registry;
 pub mod sources;

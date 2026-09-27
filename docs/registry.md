@@ -39,6 +39,13 @@ recorded as `registries.<name>.target` in your `copit.toml`. A registry never pi
 destination at install time: the recorded value is yours to edit, and any target that is
 absolute or escapes the project is rejected.
 
+Without `--variant`, copit recognises the registry's variants from your own manifests,
+when the index says how (see [Variants](#variants)): it reads the `package.json` and
+`pyproject.toml` files between the target and the project root, selects every variant
+whose packages you already depend on, prints what it found and records it in
+`copit.toml`. `--variant` always wins. Installing a component whose files depend on a
+variant, with none of its variants selected, warns that those files were skipped.
+
 A registry name is used in `@name/component` and recorded against every component it
 installs, so it cannot contain `:`, `/`, `@` or whitespace.
 
@@ -173,6 +180,7 @@ Validate yours against [`registry.schema.json`](registry.schema.json) in CI.
 | `source` | | Informational. copit fetches from the source *you* configured, at the ref you pinned |
 | `ecosystem` | | `python`, `node`, `rust`. Selects the package manager |
 | `variants` | | Names a component may specialise on |
+| `detect` | | Per variant, the packages that mark a project as using it, for `registry add` |
 | `install` | | Defaults: `target` and `package_marker` are used; `exclude` and `optional` are generator-side |
 | `components` | yes | Map of id to component |
 
@@ -300,6 +308,18 @@ Variant files are additive: a file listed under a variant that is not selected i
 copied, unless a selected variant lists it too, so a shared base module can appear under
 several variants. Selection comes from `copit.toml` or `--variant`, and whatever was used
 is recorded on the installed entry.
+
+Declare how a project shows it uses each variant, and `copit registry add` selects them
+without `--variant`:
+
+```json
+"variants": ["react", "vue"],
+"detect": { "react": { "packages": ["react"] }, "vue": { "packages": ["vue"] } }
+```
+
+Detection reads data only: dependency names from `package.json` (every dependency table)
+and `pyproject.toml` (`[project]`, its extras, `[dependency-groups]` and Poetry), for the
+registry's `ecosystem`. Older copit ignores `detect`, so adding it never breaks an install.
 
 ### Local development
 

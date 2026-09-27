@@ -117,6 +117,8 @@ async fn install_from(
         cmd.no_packages,
     );
 
+    warn_skipped_variant_files(registry_name, &plan, &variants);
+
     if cmd.dry_run {
         println!("\nDry run: nothing was written.");
         return Ok(());
@@ -253,6 +255,31 @@ fn print_plan(
             format!("Packages (via {note})")
         };
         println!("\n  {label}: {}", plan.packages.join(", "));
+    }
+}
+
+/// Warn when variant files are skipped because no variant is selected.
+fn warn_skipped_variant_files(registry_name: &str, plan: &InstallPlan, variants: &[String]) {
+    for planned in &plan.components {
+        let component = &planned.component;
+        let offered: Vec<&String> = component
+            .variants
+            .iter()
+            .filter(|(_, variant)| !variant.include.is_empty())
+            .map(|(name, _)| name)
+            .collect();
+        if offered.is_empty() || offered.iter().any(|name| variants.contains(name)) {
+            continue;
+        }
+        let names: Vec<&str> = offered.iter().map(|name| name.as_str()).collect();
+        eprintln!(
+            "\nwarning: @{registry_name}/{} has files for {}, but no variant is selected, \
+             so they are skipped.\n  Pass --variant {}, or set `variants` for this \
+             registry in copit.toml.",
+            component.name,
+            names.join(", "),
+            names[0],
+        );
     }
 }
 

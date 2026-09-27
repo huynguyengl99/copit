@@ -1,6 +1,7 @@
 mod cli;
 mod commands;
 mod config;
+mod detect;
 mod installers;
 mod registry;
 mod sources;

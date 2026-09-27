@@ -1222,3 +1222,102 @@ fn packages_fall_back_to_the_project_root() {
         .success()
         .stdout(predicates::str::contains("via uv)"));
 }
+
+/// The test registry, with detection rules for its variants.
+fn write_detecting_registry(root: &Path) {
+    write_registry(root);
+    let index = std::fs::read_to_string(root.join(INDEX_FILE))
+        .unwrap()
+        .replace(
+            r#""variants": ["sqlite", "postgres"],"#,
+            r#""variants": ["sqlite", "postgres"],
+  "detect": { "sqlite": { "packages": ["aiosqlite"] }, "postgres": { "packages": ["asyncpg"] } },"#,
+        );
+    std::fs::write(root.join(INDEX_FILE), index).unwrap();
+}
+
+#[test]
+fn registry_add_detects_variants_from_the_project_manifest() {
+    let registry = TempDir::new().unwrap();
+    write_detecting_registry(registry.path());
+    let project = TempDir::new().unwrap();
+    std::fs::write(project.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
+    std::fs::write(
+        project.path().join("pyproject.toml"),
+        "[project]\nname = \"app\"\ndependencies = [\"asyncpg>=0.29\"]\n",
+    )
+    .unwrap();
+
+    copit_cmd()
+        .args([
+            "registry",
+            "add",
+            "my-kit",
+            &registry.path().to_string_lossy(),
+        ])
+        .current_dir(project.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Detected variant postgres from pyproject.toml",
+        ));
+
+    let config = std::fs::read_to_string(project.path().join("copit.toml")).unwrap();
+    assert!(config.contains("variants = [\"postgres\"]"), "{config}");
+}
+
+#[test]
+fn an_explicit_variant_wins_over_detection() {
+    let registry = TempDir::new().unwrap();
+    write_detecting_registry(registry.path());
+    let project = TempDir::new().unwrap();
+    std::fs::write(project.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
+    std::fs::write(
+        project.path().join("pyproject.toml"),
+        "[project]\nname = \"app\"\ndependencies = [\"asyncpg\"]\n",
+    )
+    .unwrap();
+
+    copit_cmd()
+        .args([
+            "registry",
+            "add",
+            "my-kit",
+            &registry.path().to_string_lossy(),
+            "--variant",
+            "sqlite",
+        ])
+        .current_dir(project.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Detected").not());
+
+    let config = std::fs::read_to_string(project.path().join("copit.toml")).unwrap();
+    assert!(config.contains("variants = [\"sqlite\"]"), "{config}");
+}
+
+#[test]
+fn installing_without_a_variant_warns_about_skipped_files() {
+    let (project, _registry) = project_with_registry(&[]);
+
+    copit_cmd()
+        .args(["add", "@my-kit/auth", "-y", "--no-packages"])
+        .current_dir(project.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains(
+            "@my-kit/auth has files for postgres, sqlite, but no variant is selected",
+        ));
+}
+
+#[test]
+fn installing_with_a_variant_does_not_warn() {
+    let (project, _registry) = project_with_registry(&["sqlite"]);
+
+    copit_cmd()
+        .args(["add", "@my-kit/auth", "-y", "--no-packages"])
+        .current_dir(project.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("no variant is selected").not());
+}

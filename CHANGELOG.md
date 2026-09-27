@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0] - 2026-09-27
+
+### Features
+
+- Detect variants from the project's manifests ([7cbd2f4](https://github.com/huynguyengl99/copit/commit/7cbd2f4f0d41e18a47a0fbd9b744ce8263572dd3))
+- Install components in parts with --only and --without ([bebf8ac](https://github.com/huynguyengl99/copit/commit/bebf8ac4fbe8cfcbd9eac9f62f1b26e5eefee599))
+
 ## [0.8.0] - 2026-09-26
 
 ### Features

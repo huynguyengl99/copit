@@ -40,30 +40,83 @@ pub async fn run(
             .push(component.clone());
     }
 
+    let parts = PartSelection {
+        only: cmd.only.clone(),
+        without: cmd.without.clone(),
+    };
+    let mut opened = Vec::new();
     for (name, components) in by_registry {
-        install_from(name, &components, cmd, settings, cfg).await?;
+        let (registry, index) = super::registry::open(name).await?;
+        opened.push((name, components, registry, index));
+    }
+    // A part only has to exist in one registry: `--only stt` with a UI kit alongside.
+    let offered: Vec<&str> = opened
+        .iter()
+        .flat_map(|(_, requested, _, index)| index.parts_offered(requested))
+        .collect();
+    parts.check(&offered)?;
+
+    // Plan every registry before writing, so one bad request leaves nothing half-done.
+    let mut staged = Vec::new();
+    for (name, requested, registry, index) in &opened {
+        let parts = parts.within(&index.parts_offered(requested));
+        staged.push(stage(name, requested, registry, index, &parts, cmd, cfg)?);
+    }
+    staged.retain(|stage| !stage.plan.components.is_empty());
+    if staged.is_empty() {
+        println!("Nothing to do: already installed.");
+        return Ok(());
     }
 
+    for stage in &staged {
+        stage.print(cmd.no_packages);
+    }
+    if cmd.dry_run {
+        println!("\nDry run: nothing was written.");
+        return Ok(());
+    }
+    if !cmd.yes && !confirm(&staged)? {
+        println!("Cancelled.");
+        return Ok(());
+    }
+
+    for stage in &staged {
+        stage.install(cmd, settings, cfg).await?;
+    }
     Ok(())
 }
 
-async fn install_from(
-    registry_name: &str,
-    requested: &[String],
-    cmd: &AddCommand,
-    settings: &ResolvedSettings,
-    cfg: &CopitConfig,
-) -> Result<()> {
-    let (registry, index) = super::registry::open(registry_name).await?;
+/// One registry's share of an install, planned but not yet written.
+struct Stage<'a> {
+    registry_name: &'a str,
+    registry: &'a config::RegistryConfig,
+    index: &'a RegistryIndex,
+    variants: Vec<String>,
+    optional: Vec<String>,
+    /// Recorded on the entry so `update` reproduces the decision rather than
+    /// re-applying whatever the registry configures by then.
+    recorded: Option<Vec<String>>,
+    plan: InstallPlan,
+    target: String,
+    manager: Option<Manager>,
+    root: PathBuf,
+}
 
+fn stage<'a>(
+    registry_name: &'a str,
+    requested: &[String],
+    registry: &'a config::RegistryConfig,
+    index: &'a RegistryIndex,
+    parts: &PartSelection,
+    cmd: &AddCommand,
+    cfg: &CopitConfig,
+) -> Result<Stage<'a>> {
     let variants = if cmd.variants.is_empty() {
         registry.variants.clone()
     } else {
         cmd.variants.clone()
     };
 
-    // Recorded on the entry so `update` reproduces the decision rather than
-    // re-applying whatever the registry configures by then.
     let recorded: Option<Vec<String>> = if cmd.no_optional {
         Some(Vec::new())
     } else if !cmd.with.is_empty() {
@@ -82,16 +135,7 @@ async fn install_from(
     } else {
         Deps::Resolve
     };
-    let parts = PartSelection {
-        only: cmd.only.clone(),
-        without: cmd.without.clone(),
-    };
-    let plan = index.plan(requested, &variants, &optional, &parts, &installed, deps)?;
-
-    if plan.components.is_empty() {
-        println!("Nothing to do: already installed.");
-        return Ok(());
-    }
+    let plan = index.plan(requested, &variants, &optional, parts, &installed, deps)?;
 
     // The registry may suggest a directory, but only the user picks one: `registry add`
     // records the suggestion into `registries.<name>.target`, so by here every candidate
@@ -104,57 +148,70 @@ async fn install_from(
     common::validate_install_target(&target)?;
 
     let root = std::env::current_dir().context("Failed to read the current directory")?;
-    let manager = resolve_manager(&registry, &index, &root, &target);
+    let manager = resolve_manager(registry, index, &root, &target);
 
-    // Show what will actually happen: --no-packages means nothing is installed, so
-    // naming a manager here would be a lie.
-    let display_manager = match &manager {
-        Some(found) if !cmd.no_packages => Some(found.describe(&root)),
-        _ => None,
-    };
-    print_plan(
-        &plan,
-        &target,
-        &variants,
-        &optional,
-        display_manager.as_deref(),
-        cmd.no_packages,
-    );
-
-    warn_skipped_variant_files(registry_name, &plan, &variants);
-
-    if cmd.dry_run {
-        println!("\nDry run: nothing was written.");
-        return Ok(());
-    }
-
-    if !cmd.yes && !confirm(&plan)? {
-        println!("Cancelled.");
-        return Ok(());
-    }
-
-    let install = Install {
+    Ok(Stage {
         registry_name,
-        registry_source: &registry.source,
-        index: &index,
-        target: &target,
-        variants: &variants,
-        optional: recorded.as_deref(),
-        licenses_dir: cfg.licenses_dir.as_deref(),
-        no_license: cmd.no_license,
-        freeze: cmd.freeze,
-        settings,
-    };
+        registry,
+        index,
+        variants,
+        optional,
+        recorded,
+        plan,
+        target,
+        manager,
+        root,
+    })
+}
 
-    for planned in &plan.components {
-        copy_component(&install, planned).await?;
+impl Stage<'_> {
+    fn print(&self, no_packages: bool) {
+        // Show what will actually happen: --no-packages means nothing is installed, so
+        // naming a manager here would be a lie.
+        let display_manager = match &self.manager {
+            Some(found) if !no_packages => Some(found.describe(&self.root)),
+            _ => None,
+        };
+        print_plan(
+            &self.plan,
+            &self.target,
+            &self.variants,
+            &self.optional,
+            display_manager.as_deref(),
+            no_packages,
+        );
+        warn_skipped_variant_files(self.registry_name, &self.plan, &self.variants);
     }
 
-    if !cmd.no_packages && !plan.packages.is_empty() {
-        install_packages(&plan.packages, manager.as_ref())?;
-    }
+    async fn install(
+        &self,
+        cmd: &AddCommand,
+        settings: &ResolvedSettings,
+        cfg: &CopitConfig,
+    ) -> Result<()> {
+        let install = Install {
+            registry_name: self.registry_name,
+            registry_source: &self.registry.source,
+            index: self.index,
+            target: &self.target,
+            variants: &self.variants,
+            optional: self.recorded.as_deref(),
+            licenses_dir: cfg.licenses_dir.as_deref(),
+            no_license: cmd.no_license,
+            freeze: cmd.freeze,
+            settings,
+        };
 
-    Ok(())
+        for planned in &self.plan.components {
+            copy_component(&install, planned).await?;
+        }
+
+        if !cmd.no_packages && !self.plan.packages.is_empty() {
+            install_packages(&self.plan.packages, self.manager.as_ref())?;
+        }
+
+        Ok(())
+    }
 }
 
 /// A package manager and the directory it runs in.
@@ -304,9 +361,9 @@ fn warn_skipped_variant_files(registry_name: &str, plan: &InstallPlan, variants:
     }
 }
 
-fn confirm(plan: &InstallPlan) -> Result<bool> {
-    let components = plan.components.len();
-    let packages = plan.packages.len();
+fn confirm(staged: &[Stage]) -> Result<bool> {
+    let components: usize = staged.iter().map(|s| s.plan.components.len()).sum();
+    let packages: usize = staged.iter().map(|s| s.plan.packages.len()).sum();
 
     let prompt = if packages == 0 {
         format!(

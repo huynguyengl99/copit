@@ -153,6 +153,36 @@ impl PartSelection {
     fn names(&self) -> impl Iterator<Item = &String> {
         self.only.iter().chain(self.without.iter())
     }
+
+    /// Each named part must be one of `offered`.
+    pub fn check(&self, offered: &[&str]) -> Result<()> {
+        match self.names().find(|name| !offered.contains(&name.as_str())) {
+            Some(name) => bail!(
+                "No requested component has a part '{name}'. Parts: {}",
+                if offered.is_empty() {
+                    "none".to_string()
+                } else {
+                    offered.join(", ")
+                }
+            ),
+            None => Ok(()),
+        }
+    }
+
+    /// Only the named parts in `offered`: one command may span registries.
+    pub fn within(&self, offered: &[&str]) -> PartSelection {
+        let keep = |names: &[String]| {
+            names
+                .iter()
+                .filter(|name| offered.contains(&name.as_str()))
+                .cloned()
+                .collect()
+        };
+        PartSelection {
+            only: keep(&self.only),
+            without: keep(&self.without),
+        }
+    }
 }
 
 /// What leaving parts out removes from a component.
@@ -567,41 +597,29 @@ impl RegistryIndex {
         Ok(plan)
     }
 
+    /// The parts requested components offer, sorted.
+    pub fn parts_offered(&self, requested: &[String]) -> Vec<&str> {
+        let mut offered: Vec<&str> = requested
+            .iter()
+            .filter_map(|id| self.components.get(id))
+            .flat_map(|component| component.parts.keys())
+            .map(String::as_str)
+            .collect();
+        offered.sort_unstable();
+        offered.dedup();
+        offered
+    }
+
+    /// Each `--only` / `--without` part must belong to a requested component.
+    pub fn check_parts(&self, requested: &[String], parts: &PartSelection) -> Result<()> {
+        parts.check(&self.parts_offered(requested))
+    }
+
     /// Validate requested optional groups against what the registry declares.
     ///
     /// Index-level `install.optional` is a generator-side default: only groups a
     /// component actually materialised into its own `optional` map can be copied, so
     /// only those are accepted here.
-    /// Each `--only` / `--without` part must belong to a requested component.
-    pub fn check_parts(&self, requested: &[String], parts: &PartSelection) -> Result<()> {
-        for name in parts.names() {
-            let known = requested
-                .iter()
-                .filter_map(|id| self.components.get(id))
-                .any(|component| component.parts.contains_key(name));
-            if known {
-                continue;
-            }
-            let mut available: Vec<&str> = requested
-                .iter()
-                .filter_map(|id| self.components.get(id))
-                .flat_map(|component| component.parts.keys())
-                .map(String::as_str)
-                .collect();
-            available.sort_unstable();
-            available.dedup();
-            bail!(
-                "No requested component has a part '{name}'. Parts: {}",
-                if available.is_empty() {
-                    "none".to_string()
-                } else {
-                    available.join(", ")
-                }
-            );
-        }
-        Ok(())
-    }
-
     pub fn check_optional(&self, groups: &[String]) -> Result<()> {
         for group in groups {
             let known = self

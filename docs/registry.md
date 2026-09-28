@@ -262,6 +262,10 @@ leaves out the other part's files, and whatever components or packages only it l
 The choice is recorded on the installed entry (`parts = ["stt"]`), so `copit update`
 keeps it.
 
+One command may mix registries: in `copit add @kit/deepgram @kit-ui/transcriber --only
+stt`, the part applies to the components that have it and the rest install whole.
+Every registry is planned before anything is written.
+
 Parts are subtractive on purpose: every part's files, `requires` and `dependencies` are
 also listed on the component itself. A copit that predates parts ignores the field and
 installs the whole component, which is the default anyway. List a requirement under a

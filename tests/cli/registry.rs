@@ -1479,3 +1479,95 @@ fn an_unknown_part_is_a_clear_error() {
             "No requested component has a part 'sst'. Parts: stt, tts",
         ));
 }
+
+/// A second registry in the parts project, with one component and no parts.
+fn add_web_registry(project: &Path) -> TempDir {
+    let registry = TempDir::new().unwrap();
+    let index = r#"{
+  "version": 1,
+  "name": "web-kit",
+  "ecosystem": "node",
+  "components": {
+    "captions": { "name": "captions", "path": "c/captions", "files": ["index.ts"] }
+  }
+}"#;
+    std::fs::create_dir_all(registry.path().join("c/captions")).unwrap();
+    std::fs::write(registry.path().join("c/captions/index.ts"), "captions").unwrap();
+    std::fs::write(registry.path().join(INDEX_FILE), index).unwrap();
+    copit_cmd()
+        .args([
+            "registry",
+            "add",
+            "web-kit",
+            &registry.path().to_string_lossy(),
+            "--to",
+            "web",
+        ])
+        .current_dir(project)
+        .assert()
+        .success();
+    registry
+}
+
+#[test]
+fn a_part_applies_to_the_registry_that_has_it() {
+    let (project, _registry) = parts_project();
+    let _web = add_web_registry(project.path());
+    copit_cmd()
+        .args([
+            "add",
+            "@voice-kit/voice",
+            "@web-kit/captions",
+            "--only",
+            "stt",
+            "-y",
+            "--no-packages",
+        ])
+        .current_dir(project.path())
+        .assert()
+        .success();
+
+    assert!(project.path().join("kits/voice/transcriber.py").exists());
+    assert!(!project.path().join("kits/voice/synthesizer.py").exists());
+    assert!(project.path().join("web/captions/index.ts").exists());
+}
+
+#[test]
+fn an_unknown_part_lists_parts_from_every_registry() {
+    let (project, _registry) = parts_project();
+    let _web = add_web_registry(project.path());
+    copit_cmd()
+        .args([
+            "add",
+            "@voice-kit/voice",
+            "@web-kit/captions",
+            "--only",
+            "sst",
+            "-y",
+        ])
+        .current_dir(project.path())
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "No requested component has a part 'sst'. Parts: stt, tts",
+        ));
+}
+
+#[test]
+fn a_failing_registry_leaves_the_others_unwritten() {
+    let (project, _registry) = parts_project();
+    let _web = add_web_registry(project.path());
+    copit_cmd()
+        .args([
+            "add",
+            "@voice-kit/voice",
+            "@web-kit/missing",
+            "-y",
+            "--no-packages",
+        ])
+        .current_dir(project.path())
+        .assert()
+        .failure();
+
+    assert!(!project.path().join("kits").exists());
+}

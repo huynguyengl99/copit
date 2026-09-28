@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.1] - 2026-09-28
+
+### Bug Fixes
+
+- Plan every registry before writing, and apply parts across them ([2c6442b](https://github.com/huynguyengl99/copit/commit/2c6442bb504241f70fc9a774e83f25ee9d306bf5))
+
+### Documentation
+
+- Regenerate the CLI reference ([4b1773d](https://github.com/huynguyengl99/copit/commit/4b1773d75dfa92ab957a71f1ca220a8f7383d3e4))
+
 ## [0.9.0] - 2026-09-27
 
 ### Features

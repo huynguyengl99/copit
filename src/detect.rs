@@ -63,8 +63,39 @@ fn manifest_readers(ecosystem: &str) -> Vec<(&'static str, Reader)> {
     match ecosystem {
         "node" => vec![node],
         "python" => vec![python],
+        "go" => vec![("go.mod", go_mod_packages)],
         _ => vec![node, python],
     }
+}
+
+/// Every module a `go.mod` requires, in single-line and block form.
+pub fn go_mod_packages(text: &str) -> BTreeSet<String> {
+    let mut found = BTreeSet::new();
+    let mut in_block = false;
+    for line in text
+        .lines()
+        .map(|line| line.split("//").next().unwrap_or("").trim())
+    {
+        let module = match (in_block, line) {
+            (_, "require (") => {
+                in_block = true;
+                continue;
+            }
+            (true, ")") => {
+                in_block = false;
+                continue;
+            }
+            (true, entry) => entry,
+            (false, entry) => match entry.strip_prefix("require ") {
+                Some(entry) => entry,
+                None => continue,
+            },
+        };
+        if let Some(name) = module.split_whitespace().next() {
+            found.insert(normalise(name));
+        }
+    }
+    found
 }
 
 /// Every dependency name in a `package.json`, dev and peer included.
@@ -166,6 +197,17 @@ fn normalise(name: &str) -> String {
 mod tests {
     use super::*;
     use std::collections::BTreeMap;
+
+    #[test]
+    fn go_mod_requires_in_both_forms() {
+        let text = "module app\n\nrequire github.com/gin-gonic/gin v1.12.0\nrequire (\n\tgo.chanx.dev/v2 v2.1.0 // indirect\n)\n";
+
+        let found = go_mod_packages(text);
+
+        assert!(found.contains(&normalise("github.com/gin-gonic/gin")));
+        assert!(found.contains(&normalise("go.chanx.dev/v2")));
+        assert_eq!(found.len(), 2);
+    }
 
     fn index(ecosystem: &str) -> RegistryIndex {
         serde_json::from_value(serde_json::json!({

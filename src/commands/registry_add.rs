@@ -451,6 +451,8 @@ pub(super) async fn copy_component(
         .with_context(|| format!("Failed to fetch component '{}'", component.name))?;
 
     let publish: HashSet<&String> = planned.files.iter().collect();
+    let root = std::env::current_dir().context("Failed to read the current directory")?;
+    let module_path = index.install.module_path.as_deref();
 
     let mut written = 0;
     for (within, contents) in &fetched.files {
@@ -467,7 +469,8 @@ pub(super) async fn copy_component(
             continue;
         }
 
-        common::write_file(&dest, contents)?;
+        let contents = crate::golang::localize(contents, within, module_path, target, &root);
+        common::write_file(&dest, &contents)?;
         written += 1;
     }
 

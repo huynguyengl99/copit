@@ -2,6 +2,7 @@ mod cli;
 mod commands;
 mod config;
 mod detect;
+mod golang;
 mod installers;
 mod registry;
 mod sources;

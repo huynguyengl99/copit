@@ -171,10 +171,22 @@ async fn update_component(
     };
 
     let track_path = PathBuf::from(&entry.path);
+    let target = track_path
+        .parent()
+        .map(common::portable_display)
+        .unwrap_or_default();
+    let root = std::env::current_dir().context("Failed to read the current directory")?;
     let mut updated = 0;
     let mut kept = 0;
 
     for (within, contents) in &fetched.files {
+        let contents = &*crate::golang::localize(
+            contents,
+            within,
+            index.install.module_path.as_deref(),
+            &target,
+            &root,
+        );
         let dest = track_path.join(within);
         common::validate_no_path_traversal(&dest, &entry.path)?;
 

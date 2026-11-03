@@ -382,6 +382,10 @@ pub struct InstallConfig {
     /// Named groups excluded by default, installable on request (e.g. `tests`).
     #[serde(default)]
     pub optional: BTreeMap<String, OptionalGroup>,
+    /// Go import path the registry's files use for each other, e.g. `example.com/kits`.
+    /// copit rewrites it to the project's module plus the install target.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub module_path: Option<String>,
 }
 
 /// A fetched registry index.

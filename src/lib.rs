@@ -63,6 +63,7 @@ pub mod cli;
 pub mod commands;
 pub mod config;
 pub mod detect;
+pub mod golang;
 pub mod installers;
 pub mod registry;
 pub mod sources;

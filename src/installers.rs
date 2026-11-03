@@ -114,6 +114,13 @@ pub static INSTALLERS: &[PackageInstaller] = &[
         pyproject_table: None,
     },
     PackageInstaller {
+        name: "go",
+        ecosystem: "go",
+        subcommand: "get",
+        lockfiles: &["go.mod"],
+        pyproject_table: None,
+    },
+    PackageInstaller {
         name: "cargo",
         ecosystem: "rust",
         subcommand: "add",

@@ -414,6 +414,9 @@ pub struct RegistryIndex {
     pub detect: BTreeMap<String, VariantDetect>,
     #[serde(default)]
     pub install: InstallConfig,
+    /// Other registries in the same source, by name, each the path of its index.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub registries: BTreeMap<String, String>,
     pub components: BTreeMap<String, Component>,
 }
 
@@ -1046,6 +1049,7 @@ mod tests {
             variants: vec!["sqlite".to_string(), "postgres".to_string()],
             detect: BTreeMap::new(),
             install: InstallConfig::default(),
+            registries: BTreeMap::new(),
             components: components
                 .into_iter()
                 .map(|component| (component.name.clone(), component))

@@ -93,9 +93,21 @@ pub async fn add(cmd: &RegistryAddCommand) -> Result<()> {
 
     // Load the index now rather than at first use, so a typo in the source is caught
     // here instead of surfacing later as a failed install.
-    let index = load_index(&cmd.source, cmd.index.as_deref())
+    let mut index = load_index(&cmd.source, cmd.index.as_deref())
         .await
         .with_context(|| format!("Could not read a registry at '{}'", cmd.source))?;
+
+    // A source holding several registries lists them; the name picks one.
+    let mut index_path = cmd.index.clone();
+    if index_path.is_none() && index.name != cmd.name {
+        if let Some(path) = index.registries.get(&cmd.name).cloned() {
+            println!("Registry '{}' is {path} in {}", cmd.name, cmd.source);
+            index = load_index(&cmd.source, Some(&path))
+                .await
+                .with_context(|| format!("Could not read {path} in '{}'", cmd.source))?;
+            index_path = Some(path);
+        }
+    }
 
     index.check_variants(&cmd.variants)?;
     index.check_optional(&cmd.with)?;
@@ -161,7 +173,7 @@ pub async fn add(cmd: &RegistryAddCommand) -> Result<()> {
 
     let entry = RegistryConfig {
         source: cmd.source.clone(),
-        index: cmd.index.clone(),
+        index: index_path,
         target,
         variants: variants.clone(),
         optional: cmd.with.clone(),

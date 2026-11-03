@@ -1571,3 +1571,82 @@ fn a_failing_registry_leaves_the_others_unwritten() {
 
     assert!(!project.path().join("kits").exists());
 }
+
+/// A root index listing a Go registry beside it, whose `store` imports `presence`.
+fn write_go_catalog(root: &Path) {
+    std::fs::write(
+        root.join(INDEX_FILE),
+        r#"{"version": 1, "name": "kits", "registries": {"kits-go": "go/copit-registry.json"}, "components": {}}"#,
+    )
+    .unwrap();
+    std::fs::create_dir_all(root.join("go/presence")).unwrap();
+    std::fs::create_dir_all(root.join("go/store")).unwrap();
+    std::fs::write(
+        root.join("go/copit-registry.json"),
+        r#"{
+  "version": 1,
+  "name": "kits-go",
+  "ecosystem": "go",
+  "install": { "target": "internal/kits", "module_path": "example.com/kits" },
+  "components": {
+    "presence": { "name": "presence", "path": "go/presence", "version": "0.1.0", "files": ["presence.go"] },
+    "store": { "name": "store", "path": "go/store", "version": "0.1.0", "requires": ["presence"], "files": ["store.go"] }
+  }
+}"#,
+    )
+    .unwrap();
+    std::fs::write(root.join("go/presence/presence.go"), "package presence\n").unwrap();
+    std::fs::write(
+        root.join("go/store/store.go"),
+        "package store\n\nimport \"example.com/kits/presence\"\n\nvar _ presence.T\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn a_registry_listed_in_the_root_index_is_found_by_name() {
+    let registry = TempDir::new().unwrap();
+    write_go_catalog(registry.path());
+    let project = TempDir::new().unwrap();
+    std::fs::write(project.path().join("copit.toml"), "target = \"vendor\"\n").unwrap();
+    std::fs::write(
+        project.path().join("go.mod"),
+        "module example.com/app\n\ngo 1.25\n",
+    )
+    .unwrap();
+
+    copit_cmd()
+        .args([
+            "registry",
+            "add",
+            "kits-go",
+            &registry.path().to_string_lossy(),
+        ])
+        .current_dir(project.path())
+        .assert()
+        .success();
+
+    let config = std::fs::read_to_string(project.path().join("copit.toml")).unwrap();
+    assert!(
+        config.contains("index = \"go/copit-registry.json\""),
+        "{config}"
+    );
+
+    copit_cmd()
+        .args(["add", "@kits-go/store", "-y"])
+        .current_dir(project.path())
+        .assert()
+        .success();
+
+    // The registry's own module path now names where the kits landed in this project.
+    let store =
+        std::fs::read_to_string(project.path().join("internal/kits/store/store.go")).unwrap();
+    assert!(
+        store.contains("\"example.com/app/internal/kits/presence\""),
+        "{store}"
+    );
+    assert!(project
+        .path()
+        .join("internal/kits/presence/presence.go")
+        .exists());
+}

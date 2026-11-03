@@ -42,9 +42,14 @@ absolute or escapes the project is rejected.
 Without `--variant`, copit recognises the registry's variants from your own manifests,
 when the index says how (see [Variants](#variants)): it reads the `package.json` and
 `pyproject.toml` files between the target and the project root, selects every variant
-whose packages you already depend on, prints what it found and records it in
+whose packages you already depend on (`go.mod` for a Go registry), prints what it found and records it in
 `copit.toml`. `--variant` always wins. Installing a component whose files depend on a
 variant, with none of its variants selected, warns that those files were skipped.
+
+A source can hold several registries, one per language say. Its root index lists them
+under `registries`, and naming one is enough: `copit registry add kits-go
+github:owner/repo@v1` reads the root index, finds `kits-go` there and records its index
+path, as `--index` would.
 
 A registry name is used in `@name/component` and recorded against every component it
 installs, so it cannot contain `:`, `/`, `@` or whitespace.
@@ -180,11 +185,18 @@ Validate yours against [`registry.schema.json`](registry.schema.json) in CI.
 | `name` | yes | Registry id, used as `@name/component` |
 | `title` | | Human-readable name |
 | `source` | | Informational. copit fetches from the source *you* configured, at the ref you pinned |
-| `ecosystem` | | `python`, `node`, `rust`. Selects the package manager |
+| `ecosystem` | | `python`, `node`, `go`, `rust`. Selects the package manager |
 | `variants` | | Names a component may specialise on |
 | `detect` | | Per variant, the packages that mark a project as using it, for `registry add` |
-| `install` | | Defaults: `target` and `package_marker` are used; `exclude` and `optional` are generator-side |
+| `install` | | Defaults: `target`, `package_marker` and `module_path` are used; `exclude` and `optional` are generator-side |
+| `registries` | | Other registries in the same source, by name, each the path of its index |
 | `components` | yes | Map of id to component |
+
+Go has no relative imports, so a Go component importing another names the registry's
+module path, such as `example.com/kits/presence`. With `install.module_path` set to
+`example.com/kits`, copit rewrites that prefix in every copied `.go` file to the
+project's module, read from `go.mod`, plus the install target:
+`example.com/app/internal/kits/presence`.
 
 ### Component fields
 
@@ -409,6 +421,7 @@ repository installs with uv at the root.
 | `node` | `pnpm-lock.yaml` | `pnpm add` |
 | `node` | `yarn.lock` | `yarn add` |
 | `node` | `package-lock.json` | `npm install` |
+| `go` | `go.mod` | `go get` |
 | `rust` | `Cargo.toml` | `cargo add` |
 
 Lockfile-based managers are checked before `pip`, because a project on uv often keeps a

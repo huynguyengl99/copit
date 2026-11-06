@@ -1,7 +1,4 @@
-//! Go import paths in copied files.
-//!
-//! Go has no relative imports, so a component importing another names the registry's
-//! own module path. Once copied, that path has to name the project's module instead.
+//! Points a Go registry's import paths at the project module, since Go has no relative imports.
 
 use std::borrow::Cow;
 use std::path::Path;

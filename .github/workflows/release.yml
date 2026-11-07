@@ -4,6 +4,7 @@
 # 3. Creates GitHub Release with archives
 # 4. Publishes to PyPI
 # 5. Publishes to crates.io
+# 6. Publishes to npm (@copit/cli and one package per platform)
 name: Release
 
 on:
@@ -127,3 +128,49 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: cargo publish
+
+  # Publish to npm
+  publish-npm:
+    name: "Publish to npm"
+    needs:
+      - plan
+      - build
+      - release
+    runs-on: ubuntu-latest
+    environment:
+      name: release
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.plan.outputs.tag }}
+          persist-credentials: false
+      - name: "Download binaries"
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: artifacts-*
+          path: artifacts
+          merge-multiple: true
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+      - name: "Stage packages"
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: node npm/stage.mjs "${VERSION}" artifacts npm-dist
+      - name: "Publish to npm"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ needs.plan.outputs.version }}
+        # Platform packages first, so @copit/cli never points at a missing one; reruns skip what is out.
+        run: |
+          for dir in npm-dist/cli-* npm-dist/cli; do
+            name=$(node -p "require('./${dir}/package.json').name")
+            if npm view "${name}@${VERSION}" version >/dev/null 2>&1; then
+              echo "${name}@${VERSION} is already published"
+              continue
+            fi
+            npm publish "./${dir}" --access public --provenance
+          done

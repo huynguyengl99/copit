@@ -1,0 +1,19 @@
+{
+  "name": "@copit/cli",
+  "description": "Copy reusable source code from GitHub repos, HTTP URLs, and ZIP archives into your project",
+  "license": "MIT",
+  "homepage": "https://github.com/huynguyengl99/copit",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/huynguyengl99/copit.git",
+    "directory": "npm/cli"
+  },
+  "keywords": ["cli", "vendoring", "copy", "github", "source-code"],
+  "bin": {
+    "copit": "bin/copit.js"
+  },
+  "files": ["bin"],
+  "engines": {
+    "node": ">=18"
+  }
+}

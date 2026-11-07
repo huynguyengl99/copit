@@ -26,6 +26,17 @@ pip install copit
 uv pip install copit
 ```
 
+### From npm
+
+```bash
+npm install -g @copit/cli
+# or run without installing
+npx @copit/cli --help
+```
+
+npm installs only the prebuilt binary for your platform. The unscoped `copit` package on
+npm is a different tool.
+
 ### From Cargo
 
 ```bash
@@ -46,7 +57,7 @@ If installed to a custom directory:
 INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/huynguyengl99/copit/main/uninstall.sh | bash
 ```
 
-For PyPI: `pip uninstall copit`. For Cargo: `cargo uninstall copit`.
+For PyPI: `pip uninstall copit`. For npm: `npm uninstall -g @copit/cli`. For Cargo: `cargo uninstall copit`.
 
 ## Quick start
 

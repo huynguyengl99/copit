@@ -80,8 +80,20 @@ pub async fn run(
         return Ok(());
     }
 
+    // Every registry's files first, so a failed package install leaves none behind.
     for stage in &staged {
-        stage.install(cmd, settings, cfg).await?;
+        stage.copy(cmd, settings, cfg).await?;
+    }
+    if cmd.no_packages {
+        return Ok(());
+    }
+    let failed: Vec<String> = staged
+        .iter()
+        .filter_map(|stage| stage.install_packages().err())
+        .map(|error| format!("{error:#}"))
+        .collect();
+    if !failed.is_empty() {
+        bail!(failed.join("\n"));
     }
     Ok(())
 }
@@ -183,7 +195,7 @@ impl Stage<'_> {
         warn_skipped_variant_files(self.registry_name, &self.plan, &self.variants);
     }
 
-    async fn install(
+    async fn copy(
         &self,
         cmd: &AddCommand,
         settings: &ResolvedSettings,
@@ -205,12 +217,14 @@ impl Stage<'_> {
         for planned in &self.plan.components {
             copy_component(&install, planned).await?;
         }
-
-        if !cmd.no_packages && !self.plan.packages.is_empty() {
-            install_packages(&self.plan.packages, self.manager.as_ref())?;
-        }
-
         Ok(())
+    }
+
+    fn install_packages(&self) -> Result<()> {
+        if self.plan.packages.is_empty() {
+            return Ok(());
+        }
+        install_packages(&self.plan.packages, self.manager.as_ref())
     }
 }
 

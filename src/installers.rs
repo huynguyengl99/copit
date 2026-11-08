@@ -45,9 +45,45 @@ impl PackageInstaller {
     /// The command that adds `specs` as dependencies.
     pub fn add_command(&self, specs: &[String]) -> Vec<String> {
         let mut command = vec![self.name.to_string(), self.subcommand.to_string()];
-        command.extend(specs.iter().cloned());
+        match self.name {
+            // `go get` refuses two versions of one module in a single call.
+            "go" => command.extend(newest_per_module(specs)),
+            _ => command.extend(specs.iter().cloned()),
+        }
         command
     }
+}
+
+/// One `module@version` per module, keeping the highest version asked for.
+fn newest_per_module(specs: &[String]) -> Vec<String> {
+    let mut kept: Vec<String> = Vec::new();
+    for spec in specs {
+        let module = spec.split('@').next().unwrap_or(spec);
+        let same = kept
+            .iter_mut()
+            .find(|k| k.split('@').next().unwrap_or(k) == module);
+        match same {
+            Some(existing) if version_key(spec) > version_key(existing) => *existing = spec.clone(),
+            Some(_) => {}
+            None => kept.push(spec.clone()),
+        }
+    }
+    kept
+}
+
+/// `v2.10.1` as `[2, 10, 1]`; a pre-release suffix is ignored, no version sorts lowest.
+fn version_key(spec: &str) -> Vec<u64> {
+    let Some((_, version)) = spec.split_once('@') else {
+        return Vec::new();
+    };
+    version
+        .trim_start_matches('v')
+        .split(['-', '+'])
+        .next()
+        .unwrap_or_default()
+        .split('.')
+        .map(|part| part.parse().unwrap_or(0))
+        .collect()
 }
 
 /// True when `pyproject.toml` in `root` contains `table`, e.g. `[tool.uv]`.
@@ -159,6 +195,7 @@ pub fn install(installer: &PackageInstaller, specs: &[String], root: &Path) -> R
         .context("Installer produced an empty command")?;
 
     println!("Running: {}", argv.join(" "));
+    let packages = args[1..].join(" ");
 
     // Either failure mode leaves the files copied and tracked, so both must say what
     // is still outstanding, otherwise the user is left knowing only that something
@@ -170,16 +207,14 @@ pub fn install(installer: &PackageInstaller, specs: &[String], root: &Path) -> R
         .with_context(|| {
             format!(
                 "Failed to run `{program}`. Is it installed and on PATH? \
-                 The files were copied; install these yourself: {}",
-                specs.join(" ")
+                 The files were copied; install these yourself: {packages}"
             )
         })?;
 
     if !status.success() {
         bail!(
-            "`{}` failed. The files were copied; install these yourself: {}",
-            argv.join(" "),
-            specs.join(" ")
+            "`{}` failed. The files were copied; install these yourself: {packages}",
+            argv.join(" ")
         );
     }
 
@@ -298,6 +333,28 @@ mod tests {
         assert_eq!(
             by_name("pip").unwrap().add_command(&specs),
             vec!["pip", "install", "my-package>=0.1.0", "redis>=5"]
+        );
+    }
+
+    #[test]
+    fn go_keeps_the_newest_version_of_each_module() {
+        let go = by_name("go").unwrap();
+        let specs: Vec<String> = [
+            "go.chanx.dev/v2@v2.1.0",
+            "github.com/go-chi/chi/v5",
+            "go.chanx.dev/v2@v2.10.0",
+            "go.chanx.dev/v2@v2.2.0",
+        ]
+        .map(String::from)
+        .to_vec();
+        assert_eq!(
+            go.add_command(&specs),
+            [
+                "go",
+                "get",
+                "go.chanx.dev/v2@v2.10.0",
+                "github.com/go-chi/chi/v5"
+            ]
         );
     }
 

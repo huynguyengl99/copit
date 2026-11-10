@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.1] - 2026-11-10
+
+### CI
+
+- Build i686 Linux on manylinux 2_28, and release a named tag when run by hand ([2ea2065](https://github.com/huynguyengl99/copit/commit/2ea20652f6627f62fc95f6e74176309c142df8ca))
+- Stop prebuilding 32-bit x86 Linux ([4c34e65](https://github.com/huynguyengl99/copit/commit/4c34e656470e108ca0da34e40cfa7c25f7a2665c))
+- Build macOS binaries on macos-15, as macos-14 is retired ([30280c3](https://github.com/huynguyengl99/copit/commit/30280c3d9b2a824ec01529c7de1c004ebe8d0946))
+- Let a release re-run for its tag skip what is already out ([0722391](https://github.com/huynguyengl99/copit/commit/0722391bf3a3b926f658ea0ee4b6db4b8f2947e2))
+
 ## [0.10.0] - 2026-11-10
 
 ### Bug Fixes

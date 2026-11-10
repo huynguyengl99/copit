@@ -4,7 +4,7 @@
 # 3. Creates GitHub Release with archives
 # 4. Publishes to PyPI
 # 5. Publishes to crates.io
-# 6. Publishes to npm (@copit/cli and one package per platform)
+# 6. Publishes to npm (@copit/cli and one package per platform) by trusted publishing
 name: Release
 
 on:
@@ -154,7 +154,8 @@ jobs:
           merge-multiple: true
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 22
+          # npm 11.5+ publishes through trusted publishing (OIDC), with no token.
+          node-version: 24
           registry-url: "https://registry.npmjs.org"
       - name: "Stage packages"
         env:
@@ -162,7 +163,6 @@ jobs:
         run: node npm/stage.mjs "${VERSION}" artifacts npm-dist
       - name: "Publish to npm"
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION: ${{ needs.plan.outputs.version }}
         # Platform packages first, so @copit/cli never points at a missing one; reruns skip what is out.
         run: |

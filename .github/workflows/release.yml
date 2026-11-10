@@ -78,7 +78,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+        # A re-run for the same tag keeps the release it already made.
         run: |
+          if gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "${RELEASE_TAG} is already released"
+            exit 0
+          fi
           gh release create "${RELEASE_TAG}" \
             --target "${{ github.sha }}" \
             --title "copit ${RELEASE_TAG}" \
@@ -109,7 +114,7 @@ jobs:
         with:
           enable-cache: false
       - name: "Publish to PyPI"
-        run: uv publish wheels/*
+        run: uv publish --check-url https://pypi.org/simple/ wheels/*
 
   # Publish to crates.io
   publish-crates:
@@ -128,7 +133,13 @@ jobs:
       - name: "Publish to crates.io"
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          if curl -sf -A copit-release "https://crates.io/api/v1/crates/copit/${VERSION}" >/dev/null; then
+            echo "copit ${VERSION} is already on crates.io"
+            exit 0
+          fi
+          cargo publish
 
   # Publish to npm
   publish-npm:
@@ -143,9 +154,9 @@ jobs:
     permissions:
       id-token: write
     steps:
+      # The packaging script comes from the run's own ref, so a manual re-run gets fixes to it.
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          ref: ${{ needs.plan.outputs.tag }}
           persist-credentials: false
       - name: "Download binaries"
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4

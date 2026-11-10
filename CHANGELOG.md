@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.0] - 2026-11-10
+
+### Bug Fixes
+
+- Pass go get one version per module, the newest asked for ([c2fe960](https://github.com/huynguyengl99/copit/commit/c2fe960ee8f0ea26b857ddca657bf4ba1147859c))
+- Copy every registry's components before installing packages ([3c2da2e](https://github.com/huynguyengl99/copit/commit/3c2da2e5a56f495e2d1094bb48c2e1e6ad8a85ed))
+
+### CI
+
+- Publish @copit/cli and its platform packages to npm ([3b6cf20](https://github.com/huynguyengl99/copit/commit/3b6cf20fb8015d7df9bdf12a8011ff00e3b6108e))
+- Publish to npm by trusted publishing, without a token ([c186a7e](https://github.com/huynguyengl99/copit/commit/c186a7e8c9eaf1d02ada53d583cbbe67e3158d7d))
+
+### Documentation
+
+- Document Go registries and the registries catalog ([bba8f9d](https://github.com/huynguyengl99/copit/commit/bba8f9d2a823a822945c20e730c8bc410a072f7c))
+- Install from npm ([56caff7](https://github.com/huynguyengl99/copit/commit/56caff7c4b2dfbd51aada1518556ede7bedbafd8))
+
+### Features
+
+- Install Go components, pointing their imports at the project module ([130bdb2](https://github.com/huynguyengl99/copit/commit/130bdb2c4277a16c682ef888bfeaafb5230c69da))
+- Find a registry by name in its source's root index ([61ad7f2](https://github.com/huynguyengl99/copit/commit/61ad7f2314939b8dc016814a999aa510810359ba))
+- Ship copit on npm as @copit/cli ([107d998](https://github.com/huynguyengl99/copit/commit/107d9980b724af84e59bb169ad5c36a98a83f049))
+
+### Style
+
+- Shorten the golang module doc ([f4a7042](https://github.com/huynguyengl99/copit/commit/f4a7042bc12179969a714edd8847cead8aa85068))
+
 ## [0.9.1] - 2026-09-28
 
 ### Bug Fixes

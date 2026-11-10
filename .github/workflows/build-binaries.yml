@@ -196,9 +196,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target:
-          - x86_64-unknown-linux-gnu
-          - i686-unknown-linux-gnu
+        include:
+          - target: x86_64-unknown-linux-gnu
+            manylinux: 2_17
+          # The 2_17 (CentOS 7) i686 image installs libatomic from vault.centos.org, which
+          # its runners can no longer reach.
+          - target: i686-unknown-linux-gnu
+            manylinux: 2_28
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -212,7 +216,7 @@ jobs:
         uses: PyO3/maturin-action@04ac600d27cdf7a9a280dadf7147097c42b757ad # v1
         with:
           target: ${{ matrix.target }}
-          manylinux: 2_17
+          manylinux: ${{ matrix.manylinux }}
           args: --release --locked --out dist
       - name: "Test wheel"
         if: ${{ startsWith(matrix.target, 'x86_64') }}

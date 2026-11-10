@@ -14,7 +14,6 @@ const TARGETS = {
   'x86_64-unknown-linux-gnu': { os: 'linux', cpu: 'x64', libc: 'glibc' },
   'aarch64-unknown-linux-gnu': { os: 'linux', cpu: 'arm64', libc: 'glibc' },
   'armv7-unknown-linux-gnueabihf': { os: 'linux', cpu: 'arm', libc: 'glibc' },
-  'i686-unknown-linux-gnu': { os: 'linux', cpu: 'ia32', libc: 'glibc' },
   'x86_64-unknown-linux-musl': { os: 'linux', cpu: 'x64', libc: 'musl' },
   'aarch64-unknown-linux-musl': { os: 'linux', cpu: 'arm64', libc: 'musl' },
   'x86_64-pc-windows-msvc': { os: 'win32', cpu: 'x64' },

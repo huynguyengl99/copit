@@ -35,7 +35,7 @@ detect_platform() {
         x86_64|amd64)   arch="x86_64" ;;
         aarch64|arm64)  arch="aarch64" ;;
         armv7l)         arch="armv7"; os="unknown-linux-gnueabihf" ;;
-        i686)           arch="i686" ;;
+        i686)           error "No prebuilt binary for 32-bit x86 Linux; install with: cargo install copit" ;;
         *)              error "Unsupported architecture: $arch" ;;
     esac
 
